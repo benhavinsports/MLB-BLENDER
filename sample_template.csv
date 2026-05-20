@@ -1,4 +1,0 @@
-game,team,opponent,pitcher,pitcher_hand,batter,batter_hand,lineup_slot,weak_slots,pitch_type,pitch_edge,pull_pct,sweet_spot_pct,barrel_pct,hard_hit_pct,hr_pa,dmg,hpi,cond_up,recency_tag,hr_alert,weak_slot_tag,platoon_tag,laser_tag,rakes_tag,effort,ownership_role
-BAL@TB,BAL,TB,Griffin Jax,R,Pete Alonso,R,3,"2,3,5",4-Seam,10,25,57,10,49,4.8,1.245,48,25,HOT,TRUE,FALSE,FALSE,FALSE,FALSE,49,primary
-BAL@TB,BAL,TB,Griffin Jax,R,Coby Mayo,R,2,"2,3,5",4-Seam,15,27,32,9,67,4.2,0.984,45,22.2,ALERT,TRUE,FALSE,FALSE,TRUE,FALSE,67,adjacent
-BAL@TB,BAL,TB,Griffin Jax,R,Samuel Basallo,L,1,"2,3,5",4-Seam,7,25,53,10,60,1.8,1.644,52,,ALERT,TRUE,TRUE,TRUE,TRUE,FALSE,60,who
