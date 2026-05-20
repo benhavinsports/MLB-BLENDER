@@ -1,7 +1,0 @@
-streamlit
-pandas
-numpy
-openpyxl
-requests
-beautifulsoup4
-PyMuPDF
