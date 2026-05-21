@@ -1,4 +1,0 @@
-game_id,team,opponent,player,bat_side,pitcher,pitcher_hand,slot,odds,pull_pct,hard_hit_pct,barrel_pct,launch_angle,pitch_edge,hr9_split,recent_hr_allowed,notes
-NYY vs BOS,NYY,BOS,Aaron Judge,R,Example Pitcher,L,2,350,45.2,61.1,22.5,18,+ fastball edge,1.8,2,green recent HR lane
-NYY vs BOS,NYY,BOS,Giancarlo Stanton,R,Example Pitcher,L,5,420,48.1,55.0,19.2,21,+ slider mistake,1.8,2,adjacent chaos lane
-LAD vs SF,LAD,SF,Shohei Ohtani,L,Sample Starter,R,1,300,41.5,58.8,20.1,16,+ sinker edge,1.4,1,clean lane
