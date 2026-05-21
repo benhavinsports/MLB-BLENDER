@@ -1,0 +1,2 @@
+game_id,team,opponent,player,bat_side,pitcher,pitcher_hand,slot,odds,pull_pct,hard_hit_pct,barrel_pct,launch_angle,pitch_edge,hr9_split,recent_hr_allowed,notes
+NYY vs BOS,NYY,BOS,Aaron Judge,R,Example Pitcher,L,2,350,45.2,61.1,22.5,18,+ fastball edge,1.8,2,green recent HR lane
