@@ -1,0 +1,14 @@
+{
+  "compile": true,
+  "sample_owner": "Elite Guy",
+  "has_live_metric_ingestion": true,
+  "has_adaptive_recalibration": true,
+  "has_live_roster_pool": true,
+  "critical_duplicates": {
+    "load_adaptive_weights": 1,
+    "fetch_live_public_hitter_pool": 1,
+    "evaluate_18_gates": 1,
+    "run_true_blender": 1,
+    "rebuild_live_blender_feed": 1
+  }
+}
