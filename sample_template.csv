@@ -1,0 +1,5 @@
+page,game,team,opponent,pitcher,player,lineup_slot,pull_pct,barrel_pct,sweet_spot_pct,hard_hit_pct,hpi,dmg,hr_pa,pitch_type,pitch_edge,hr_alert,cond_up,weak_slot_tag,laser,rakes,platoon,weak_slots,raw_block,notes
+1,BOS vs NYY,Boston Red Sox,New York Yankees,Righty Pitcher,Elite Guy,2,47,14,31,48,52,2.4,3.2,4-Seam,14,True,True,True,True,True,True,"2,3,4",sample clean elite,Sample clean primary owner
+1,BOS vs NYY,Boston Red Sox,New York Yankees,Righty Pitcher,Adjacent Man,3,43,12,29,44,45,1.9,2.6,4-Seam,9,True,True,True,False,True,True,"2,3,4",sample adjacent,Sample adjacent transfer
+2,LAD vs SF,Los Angeles Dodgers,San Francisco Giants,Lefty Pitcher,Chaos Finisher,6,42,10,26,41,38,1.8,3.1,Slider,6,True,True,True,False,False,True,"5,6,7",sample chaos,Sample WHO chaos owner
+2,LAD vs SF,Los Angeles Dodgers,San Francisco Giants,Lefty Pitcher,Dead Profile,4,24,4,17,31,18,0.6,0.8,Slider,-5,False,False,False,False,False,False,"5,6,7",sample killed,Sample should die gates
