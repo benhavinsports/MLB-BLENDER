@@ -1,0 +1,7 @@
+{
+  "compile": true,
+  "engine_import": true,
+  "good_sample_owner": "Elite Guy",
+  "no_owner_message": "Blender ran, but no clean owners survived the hard gates. Game Board shows the KILL reasons.",
+  "app_has_result_status": true
+}
