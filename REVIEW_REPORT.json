@@ -1,0 +1,8 @@
+{
+  "compile": true,
+  "engine_import": true,
+  "sample_owner": "Elite Guy",
+  "app_has_run_blender_now": true,
+  "app_shows_game_board_main": true,
+  "upload_runs_immediately": true
+}
