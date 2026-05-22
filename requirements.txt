@@ -1,9 +1,0 @@
-streamlit
-pandas
-numpy
-openpyxl
-PyMuPDF
-Pillow
-pytesseract
-
-requests
