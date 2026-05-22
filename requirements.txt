@@ -1,0 +1,15 @@
+streamlit
+pandas
+numpy
+openpyxl
+PyMuPDF
+Pillow
+pytesseract
+
+requests
+
+pdfplumber
+opencv-python-headless
+easyocr
+
+python-dateutil

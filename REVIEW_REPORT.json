@@ -1,0 +1,11 @@
+{
+  "team_abbr_LAA": "LAA",
+  "canonical_ATH_LAA": "ATH_LAA",
+  "sample_owner_count": 1,
+  "sample_owner": "Elite Guy",
+  "sample_ticket_core_count": 1,
+  "has_live_pool": true,
+  "has_adaptive_weights": true,
+  "has_evaluate_18": true,
+  "duplicate_core_funcs_remaining": []
+}
