@@ -1,8 +1,0 @@
-{
-  "compile": true,
-  "visual_update": "team colors on player cards",
-  "elite_flash_rule": "score >= 78 only",
-  "engine_logic_changed": false,
-  "team_color_helper_present": true,
-  "elite_func_present": true
-}
