@@ -1,0 +1,14 @@
+{
+  "compile": true,
+  "true_slate_game_count_fix": true,
+  "attack_pool_count_unit": 26,
+  "slate_game_count_unit": 16,
+  "current_feed_labels": [
+    "Players Read",
+    "Slate Games",
+    "Attack Pools",
+    "Teams",
+    "Pitchers"
+  ],
+  "engine_version": "v111_TRUE_SLATE_GAME_COUNT_FIX"
+}
