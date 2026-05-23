@@ -1,8 +1,0 @@
-{
-  "compile": true,
-  "base_restored": "v90 engine/app",
-  "engine_logic_changed": false,
-  "owners_test": 1,
-  "team_visuals": true,
-  "elite_flash_only_score_gte_78": true
-}
