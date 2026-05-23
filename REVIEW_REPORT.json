@@ -1,0 +1,10 @@
+{
+  "compile": true,
+  "multi_layer_ocr_code": true,
+  "semantic_table_reconstruction": true,
+  "cross_page_context_memory": true,
+  "adaptive_schema_detection": true,
+  "confidence_recovery_layer": true,
+  "feeder_test_rows": 2,
+  "engine_runs": true
+}
