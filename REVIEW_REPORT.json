@@ -1,0 +1,6 @@
+{
+  "compile": true,
+  "run_button_parses_uploaded_file_if_feed_empty": true,
+  "pdf_truth_preserved": true,
+  "app_version": "v116_RUN_BUTTON_READS_UPLOAD_FIX"
+}
