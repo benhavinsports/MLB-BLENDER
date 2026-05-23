@@ -1,0 +1,79 @@
+{
+  "compile": true,
+  "actual_pdf_rows": 285,
+  "actual_pdf_metric_eligible_rows": 266,
+  "owners_locked": 29,
+  "top_owners": [
+    {
+      "player": "~5-7K",
+      "game_owner": "BOS_MIN",
+      "blender_score": 99.3,
+      "support_score": 100.0,
+      "metric_count": 11
+    },
+    {
+      "player": "Kyle Schwarber",
+      "game_owner": "PHI_VS_GAVINWILLI",
+      "blender_score": 99.3,
+      "support_score": 100.0,
+      "metric_count": 11
+    },
+    {
+      "player": "Corbin Carroll",
+      "game_owner": "ARI_VS_TOMOYUKISU",
+      "blender_score": 98.7,
+      "support_score": 98.4,
+      "metric_count": 10
+    },
+    {
+      "player": "vs. Walker Buehler ~3-5K",
+      "game_owner": "ATH_SD",
+      "blender_score": 96.5,
+      "support_score": 89.0,
+      "metric_count": 11
+    },
+    {
+      "player": "Ben Rice",
+      "game_owner": "NEW_NYY",
+      "blender_score": 96.3,
+      "support_score": 100.0,
+      "metric_count": 11
+    },
+    {
+      "player": "Luke Raley",
+      "game_owner": "KC_SEA",
+      "blender_score": 95.8,
+      "support_score": 100.0,
+      "metric_count": 11
+    },
+    {
+      "player": "Munetaka Murakami",
+      "game_owner": "CHI_SD",
+      "blender_score": 95.0,
+      "support_score": 97.6,
+      "metric_count": 11
+    },
+    {
+      "player": "Brandon Lowe",
+      "game_owner": "PIT_TOR",
+      "blender_score": 94.3,
+      "support_score": 87.1,
+      "metric_count": 11
+    },
+    {
+      "player": "Jo Adell",
+      "game_owner": "LAA_LOS",
+      "blender_score": 94.1,
+      "support_score": 80.5,
+      "metric_count": 11
+    },
+    {
+      "player": "Jac Caglianone",
+      "game_owner": "KAN_KC",
+      "blender_score": 88.7,
+      "support_score": 82.1,
+      "metric_count": 11
+    }
+  ],
+  "message": "Blender complete: 29 owners locked from Star Tool PDF. Feed validator: 265/285 rows have enough real Blender metrics."
+}

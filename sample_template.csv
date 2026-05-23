@@ -1,0 +1,6 @@
+game,team,opponent,pitcher,player,lineup_slot,pull_pct,sweet_spot_pct,barrel_pct,hard_hit_pct,dmg,hr_pa,hpi,pitch_edge,notes
+NYY vs BOS,NYY,BOS,Pitcher A,Elite Guy,3,48,31,14,52,2.1,2.8,68,7,primary lane
+NYY vs BOS,NYY,BOS,Pitcher A,Adjacent Bat,4,39,26,8,44,1.4,1.7,41,3,adjacent decoy
+LAD vs SF,LAD,SF,Pitcher B,Launch Man,2,44,33,11,49,1.8,2.4,62,6,primary lane
+LAD vs SF,LAD,SF,Pitcher B,WHO Bat,7,34,23,5,38,1.1,1.3,28,1,who chaos
+ATL vs PHI,ATL,PHI,Pitcher C,Pull Finisher,4,51,29,10,45,1.7,2.2,58,4,primary lane
