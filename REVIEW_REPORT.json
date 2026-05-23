@@ -1,0 +1,7 @@
+{
+  "compile": true,
+  "player_team_integrity_guard": true,
+  "buxton_kc_corrected_to": "Minnesota Twins",
+  "game_display_after_correction": "Minnesota Twins vs George Kirby",
+  "engine_version": "v117_PLAYER_TEAM_INTEGRITY_GUARD"
+}
