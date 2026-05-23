@@ -1,0 +1,13 @@
+{
+  "compile": true,
+  "engine_import": true,
+  "ai_oil_enabled": true,
+  "ai_feed_status": "GOOD",
+  "owners_locked": 3,
+  "core_count": 3,
+  "message": "Blender complete: 3 game owners locked from 3 games. Clean=3 \u00b7 Recovery=0.",
+  "new_files": [
+    "ai_oil.py"
+  ],
+  "optional_openai_support": true
+}
