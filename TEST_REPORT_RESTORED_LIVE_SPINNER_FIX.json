@@ -1,0 +1,9 @@
+{
+  "compile": true,
+  "restored_live_pull": true,
+  "restored_blender_spinner": true,
+  "manual_run_button": true,
+  "owners_locked_on_sample": 3,
+  "core_count": 3,
+  "message": "Blender complete: 3 owners locked from 3 games."
+}
