@@ -1,9 +1,0 @@
-{
-  "compile": true,
-  "engine_import": true,
-  "mixed_sample_owners": 1,
-  "mixed_sample_survivors": 2,
-  "bad_sample_visible_survivors": 1,
-  "ui_game_board_shows_survivors_without_owners": true,
-  "app_no_rerun": true
-}
