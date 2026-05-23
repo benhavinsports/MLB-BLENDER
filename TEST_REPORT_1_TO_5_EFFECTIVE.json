@@ -1,0 +1,24 @@
+{
+  "compile": true,
+  "smart_parser": true,
+  "validator": true,
+  "true_gate_engine": true,
+  "ai_oil_audit": true,
+  "duplicate_key_fix": true,
+  "name_only_owners": 0,
+  "ranking_owners": [
+    {
+      "player": "Zion Strong",
+      "blender_score": 92.9,
+      "support_score": 43.6,
+      "metric_count": 8
+    },
+    {
+      "player": "Yuri Launch",
+      "blender_score": 77.7,
+      "support_score": 36.7,
+      "metric_count": 8
+    }
+  ],
+  "message": "Blender complete: 2 owners locked. Feed validator: 2/4 rows have enough real Blender metrics."
+}
