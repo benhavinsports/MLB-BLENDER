@@ -1,0 +1,17 @@
+{
+  "compile": true,
+  "true_score_patch": true,
+  "owner_score_unique_count": 2,
+  "owners_locked": 2,
+  "owner_scores": [
+    {
+      "player": "Elite",
+      "score": 90.8
+    },
+    {
+      "player": "Launch",
+      "score": 80.4
+    }
+  ],
+  "message": "Blender complete: 2 game owners locked with true differentiated scores. Scores separate by Pull/HH/Barrel/DMG/HPI/HR lane/pitch edge/text signals."
+}
