@@ -1,8 +1,0 @@
-{
-  "compile": true,
-  "game_count_dedupe": true,
-  "unit_raw_rows": 26,
-  "unit_deduped_rows": 16,
-  "unit_game_count": 16,
-  "engine_version": "v110_GAME_COUNT_DEDUPE_FIX"
-}
