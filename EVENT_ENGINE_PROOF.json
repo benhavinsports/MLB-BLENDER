@@ -1,0 +1,22 @@
+{
+  "compile": true,
+  "new_upload_clears_yesterday_results": true,
+  "new_run_clears_yesterday_results": true,
+  "event_isolation_final_layer": true,
+  "proof_top_after_event_engine": "Today Event Guy",
+  "proof_table": [
+    {
+      "player": "Today Event Guy",
+      "raw_blender_score": 55,
+      "event_isolation_score": 100.0,
+      "event_note": "CONVERSION_DNA"
+    },
+    {
+      "player": "Yesterday Chalk",
+      "raw_blender_score": 85,
+      "event_isolation_score": 0.0,
+      "event_note": "CONVERSION_DNA"
+    }
+  ],
+  "engine_version": "v122_DAILY_CLEAN_EVENT_ENGINE"
+}
