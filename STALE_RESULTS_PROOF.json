@@ -1,9 +1,0 @@
-{
-  "compile": true,
-  "stale_saved_results_disabled": true,
-  "startup_results_empty": true,
-  "upload_clears_results": true,
-  "run_clears_results": true,
-  "removed_stale_files": [],
-  "engine_version": "v125_NO_STALE_RESULTS_DAILY_ONLY"
-}
