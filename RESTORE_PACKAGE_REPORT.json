@@ -1,0 +1,12 @@
+{
+  "package": "v135_restore_package",
+  "compile": {
+    "app.py": "OK",
+    "engine.py": "OK",
+    "ui.py": "OK",
+    "feeder.py": "OK",
+    "ai_oil.py": "OK"
+  },
+  "includes_version_history": true,
+  "purpose": "restore package with import fix and version history"
+}
