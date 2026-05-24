@@ -1,0 +1,31 @@
+{
+  "compile": true,
+  "engine_import_ok": true,
+  "single_clean_engine": true,
+  "fake_rows_removed": true,
+  "core3_roles": [
+    "Primary",
+    "Adjacent",
+    "WHO"
+  ],
+  "core_players_test": [
+    "Fresh Primary",
+    "Fresh Adjacent",
+    "Fresh Who"
+  ],
+  "repeat_rotated_out_of_core_test": true,
+  "removed_old_proof_files": [
+    "ANTI_REPEAT_PROOF.json",
+    "COMBINED_FIX_PROOF.json",
+    "EVENT_ENGINE_PROOF.json",
+    "EVENT_ISOLATION_PROOF.json",
+    "EVENT_RERANK_PROOF.json",
+    "REVIEW_REPORT.json",
+    "ROLE_LOCK_PROOF.json",
+    "ROLE_LOCK_SCORE_CAP_PROOF.json",
+    "ROTATION_REDISTRIBUTION_PROOF.json",
+    "STALE_RESULTS_PROOF.json",
+    "STARTUP_IMPORT_PROOF.json"
+  ],
+  "engine_version": "v132_CLEAN_UNIFIED_RUNTIME"
+}
