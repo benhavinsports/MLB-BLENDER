@@ -1,0 +1,20 @@
+{
+  "compile": true,
+  "forced_event_rerank_active": true,
+  "proof_top_changed_to": "Hidden Event Owner",
+  "proof_table": [
+    {
+      "player": "Hidden Event Owner",
+      "raw_blender_score": 58,
+      "event_isolation_score": 97.6,
+      "event_note": "WHO_CHAOS_EVENT_OWNER"
+    },
+    {
+      "player": "Surface Chalk",
+      "raw_blender_score": 82,
+      "event_isolation_score": 0.0,
+      "event_note": "LOW_EVENT_CONFIDENCE"
+    }
+  ],
+  "engine_version": "v120_FORCED_EVENT_RERANK_CORE"
+}
