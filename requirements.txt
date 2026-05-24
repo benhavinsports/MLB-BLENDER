@@ -1,0 +1,15 @@
+streamlit
+pandas
+numpy
+openpyxl
+PyMuPDF
+Pillow
+requests
+pdfplumber
+python-dateutil
+
+openai
+
+pypdf
+
+pytesseract
