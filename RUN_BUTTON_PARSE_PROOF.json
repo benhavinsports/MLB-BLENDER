@@ -1,0 +1,6 @@
+{
+  "compile": true,
+  "engine_import_ok": true,
+  "run_button_parses_selected_upload": true,
+  "engine_version": "v134_RUN_BUTTON_PARSE_UPLOAD_FIX"
+}
