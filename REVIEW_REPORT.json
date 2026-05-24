@@ -1,0 +1,10 @@
+{
+  "compile": true,
+  "removed_date_specific_files": [
+    "May_23_cleaned_startool_feed.csv"
+  ],
+  "remaining_date_specific_files": [],
+  "daily_pdf_upload_required": true,
+  "hardcoded_may23_feed_removed": true,
+  "engine_core_preserved": "v120_FORCED_EVENT_RERANK_CORE"
+}
