@@ -1,0 +1,19 @@
+{
+  "compile": true,
+  "parser_rows_may22": 221,
+  "metric_rows_may22": 221,
+  "pdf_games_may22": 6,
+  "owners_test": 6,
+  "core_test": 3,
+  "engine_message": "Blender complete: 6 owners from 6 official games. Rows=221.",
+  "audit": {
+    "filename": "May 22 .pdf",
+    "parser_version": "V148_FULL_FIX",
+    "text_chars": 60799,
+    "text_rows": 221,
+    "table_rows": "skipped_text_parser_succeeded",
+    "rows": 221,
+    "metric_rows": 221,
+    "pdf_games": 6
+  }
+}
