@@ -1,0 +1,15 @@
+{
+  "compile": true,
+  "official_module": true,
+  "attached_cols": [
+    "game_pk",
+    "game_key",
+    "game_time_et",
+    "slate_window",
+    "pitcher",
+    "official_slate_attached"
+  ],
+  "attached_game_pk": "123",
+  "attached_window": "Late",
+  "button_labels_patched": true
+}
