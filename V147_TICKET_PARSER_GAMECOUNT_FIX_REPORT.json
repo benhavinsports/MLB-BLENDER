@@ -1,0 +1,22 @@
+{
+  "compile": true,
+  "tickets_nameerror_fixed": true,
+  "game_count_test": 2,
+  "owners": 2,
+  "has_game_board": true,
+  "has_role_board": true,
+  "meta": {
+    "engine_version": "v144_TICKET_TIMEFRAME_SGP",
+    "pipeline": "clean_production_strengthened",
+    "players": 2,
+    "owners": 2,
+    "core": 2,
+    "games": 2,
+    "slate_games": 2,
+    "attack_pools": 2,
+    "owners_locked": 2,
+    "core_legs": 2,
+    "board_memory_sync": true,
+    "survivor_rows": 2
+  }
+}
