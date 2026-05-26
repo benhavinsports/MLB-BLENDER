@@ -1,9 +1,0 @@
-V0206 REAL FIX
-
-Fixed actual engine/UI path:
-- Attack side is a hard elimination gate. Non-locked side is cut.
-- Removed 96.7 score clamp. Scores now calculate up to 99.9 with row fingerprint, so cards cannot all clone 96.7.
-- Owner resolution isolates one owner per game before role assignment.
-- Role identity is rebuilt after survivor isolation from role_Primary_score / role_Adjacent_score / role_WHO_score.
-- Core 3 builds from isolated owners only. No generic refill. No projection fallback. No best remaining hitter.
-- UI card now shows core slot plus actual isolated role instead of replacing role with a static slot/template.
