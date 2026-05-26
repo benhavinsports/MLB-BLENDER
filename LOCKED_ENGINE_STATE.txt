@@ -1,0 +1,9 @@
+V154 LOCKED BLENDER MACHINE
+
+Hard-lock rebuild:
+- single engine state memory
+- no hidden fallback ranking
+- renderer synced to engine memory
+- no duplicate game core slots
+- PRIMARY / ADJACENT / WHO enforced
+- pass/cut lineage preserved

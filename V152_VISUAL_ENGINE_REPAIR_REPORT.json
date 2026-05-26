@@ -1,0 +1,22 @@
+{
+  "compile": true,
+  "engine": "V152_VISUAL_ENGINE_REPAIR",
+  "owners": 2,
+  "passes": 3,
+  "cuts": 1,
+  "core_count": 2,
+  "core_games": [
+    "Seattle Mariners vs Athletics",
+    "Philadelphia Phillies vs San Diego Padres"
+  ],
+  "core_slots": [
+    "PRIMARY",
+    "ADJACENT"
+  ],
+  "scores": [
+    90.8,
+    84.8
+  ],
+  "unique_scores": 2,
+  "message": "V152 Blender: 2 owners, 3 pass rows, 1 cuts. Core slots=['PRIMARY', 'ADJACENT']."
+}

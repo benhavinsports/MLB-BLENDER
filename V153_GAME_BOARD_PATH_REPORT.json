@@ -1,0 +1,19 @@
+{
+  "compile": true,
+  "game_board_ui": "path_board",
+  "main_change": "Game Board now renders player gate paths as board cards, not spreadsheet-only.",
+  "files": [
+    ".streamlit/config.toml",
+    "CLEAN_BUILD_REPORT.json",
+    "README.md",
+    "V151_TRUE_OUTPUT_REPORT.json",
+    "V152_VISUAL_ENGINE_REPAIR_REPORT.json",
+    "app.py",
+    "data/.gitkeep",
+    "engine.py",
+    "feeder.py",
+    "official_mlb_slate.py",
+    "requirements.txt",
+    "ui.py"
+  ]
+}
