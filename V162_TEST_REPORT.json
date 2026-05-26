@@ -1,0 +1,30 @@
+{
+  "compile": {
+    "app.py": "OK",
+    "engine.py": "OK",
+    "feeder.py": "OK",
+    "ui.py": "OK",
+    "official_mlb_slate.py": "OK"
+  },
+  "engine_version": "V161_TRUE_BLENDER_MACHINE",
+  "core_rule": "CORE_3_TOP_TRUE_EVENT_OWNERS",
+  "owners": 3,
+  "core_count": 3,
+  "core_players": [
+    "Yordan Type",
+    "Adjacent Type",
+    "WHO Type"
+  ],
+  "core_roles": [
+    "Primary",
+    "WHO",
+    "WHO"
+  ],
+  "scores": [
+    98,
+    98,
+    98
+  ],
+  "score_unique": 1,
+  "cuts": 1
+}
