@@ -1,0 +1,29 @@
+{
+  "compile": {
+    "app.py": "OK",
+    "engine.py": "OK",
+    "feeder.py": "OK",
+    "ui.py": "OK",
+    "official_mlb_slate.py": "OK"
+  },
+  "engine_version": "V161_TRUE_BLENDER_MACHINE",
+  "owners": 3,
+  "passes": 3,
+  "cuts": 2,
+  "core_slots": [
+    "PRIMARY",
+    "WHO"
+  ],
+  "generic_refill": false,
+  "fallback_sorting": false,
+  "role_recycling": false,
+  "core_players": [
+    "Primary Guy",
+    "Adj Guy"
+  ],
+  "owner_scores": [
+    93.6,
+    88.1,
+    89.4
+  ]
+}
