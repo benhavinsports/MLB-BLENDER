@@ -1,0 +1,15 @@
+
+V0205 TRUE BLENDER FIX
+
+Applied fixes:
+1. Attack side is now HARD LOCKED.
+2. Elimination only happens INSIDE locked side.
+3. One owner is isolated BEFORE role assignment.
+4. Roles now derive from survivor behavior only.
+5. Removed generic refill behavior.
+6. Removed projection fallback behavior.
+7. Removed "best remaining hitter" behavior.
+8. Core 3 now built only from isolated owners.
+
+Main patched file:
+- engine.py
