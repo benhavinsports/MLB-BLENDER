@@ -1,8 +1,0 @@
-streamlit
-pandas
-numpy
-openpyxl
-PyMuPDF
-pdfplumber
-Pillow
-python-dateutil
