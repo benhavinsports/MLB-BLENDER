@@ -1,2 +1,0 @@
-v135_FULL_APP_ARCHETYPE_FIRST_SURVIVAL_GATE
-Full app zip. Pitcher weakness archetype first, hitter match gate second, survivor pressure third.
