@@ -1,9 +1,0 @@
-FINAL FIXES
-- board now scales correctly on mobile
-- tiles shrink dynamically
-- only slate game count renders
-- removed exposed formula visuals
-- footer overlap fixed
-- CORE/ALT/WHO cards cleaned up
-- responsive gameboard sizing
-- engine untouched
