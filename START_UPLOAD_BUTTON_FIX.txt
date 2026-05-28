@@ -1,0 +1,1 @@
+Fix: START is no longer just text. The real st.file_uploader is moved/styled into the START upload zone above the public board. Engine untouched.
