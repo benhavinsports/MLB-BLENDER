@@ -1,0 +1,1 @@
+Fixes board size and makes roadmap tiles dynamic by slate games: 15 games = 15 tiles, etc. Engine untouched; UI only.
