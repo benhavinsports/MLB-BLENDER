@@ -1,1 +1,0 @@
-Public board fix: START area is upload/live blender prompt, front-page tiles are game/slate tiles, private 23-gate formula labels hidden. Engine untouched.
