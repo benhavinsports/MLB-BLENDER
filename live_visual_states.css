@@ -1,0 +1,27 @@
+
+.core-live{border-top:4px solid #36d399;}
+.alt-live{border-top:4px solid #fbbf24;}
+.who-live{border-top:4px solid #f87171;}
+
+.survivor-pass{
+ animation:survivorPulse 2s infinite;
+}
+
+.eliminated{
+ opacity:.35;
+ filter:grayscale(1);
+}
+
+.chaos-high{
+ box-shadow:0 0 24px rgba(248,113,113,.35);
+}
+
+.clean-owner{
+ box-shadow:0 0 24px rgba(54,211,153,.25);
+}
+
+@keyframes survivorPulse{
+ 0%{transform:scale(1);}
+ 50%{transform:scale(1.01);}
+ 100%{transform:scale(1);}
+}
