@@ -99,56 +99,55 @@ class BlenderEngine:
 
     def _build_hitter_pool(self, teams: Dict[str, Any]) -> List[Dict[str, Any]]:
 
-        hitters = []
+    hitters = []
 
-        for side in ["home", "away"]:
+    for side in ["home", "away"]:
 
-            team_block = teams.get(side, {})
+        team_block = teams.get(side, {})
+        team_info = team_block.get("team", {})
+        team_id = team_info.get("id")
 
-            team_info = team_block.get("team", {})
-            team_id = team_info.get("id")
+        if not team_id:
+            continue
 
-            if not team_id:
+        try:
+            roster_data = self.api.get_team_roster(team_id)
+        except Exception:
+            continue
+
+        roster = roster_data.get("roster", [])
+
+        for p in roster:
+
+            if not isinstance(p, dict):
                 continue
 
-            try:
-                roster_data = self.api.get_team_roster(team_id)
-            except Exception:
+            position = p.get("position", {}).get("abbreviation")
+
+            # 🔥 CRITICAL FILTER: remove pitchers
+            if position == "P":
                 continue
 
-            # MLB API returns {"roster": [...]}
-            roster = roster_data.get("roster", [])
+            person = p.get("person", {})
 
-            if not isinstance(roster, list):
+            if not person:
                 continue
 
-            for p in roster:
+            hitters.append(
+                {
+                    "player_id": person.get("id"),
+                    "name": person.get("fullName"),
+                    "team_side": side,
 
-                if not isinstance(p, dict):
-                    continue
+                    "ab": 1,
+                    "hits": 0,
+                    "hr": 0,
+                    "bb": 0,
+                    "so": 0,
+                }
+            )
 
-                person = p.get("person")
-
-                # sometimes structure is flat fallback
-                if not isinstance(person, dict):
-                    continue
-
-                hitters.append(
-                    {
-                        "player_id": person.get("id"),
-                        "name": person.get("fullName"),
-                        "team_side": side,
-
-                        # deterministic baseline stats
-                        "ab": 1,
-                        "hits": 0,
-                        "hr": 0,
-                        "bb": 0,
-                        "so": 0,
-                    }
-                )
-
-        return hitters
+    return hitters
 
     # =========================================================
     # SCORING ENGINE (DETERMINISTIC)
