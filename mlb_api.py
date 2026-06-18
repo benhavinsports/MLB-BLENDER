@@ -892,3 +892,37 @@ class MLBAPI:
         except Exception:
             return {}
 
+def get_today_games_bundle(self):
+    """
+    Returns full today's game dataset:
+    schedule + boxscores (basic bundle for engine)
+    """
+
+    today = self.today()
+
+    schedule = self.get_schedule(today)
+
+    games = []
+
+    for g in schedule:
+
+        game_id = g.get("game_id")
+
+        try:
+            box = self.get_boxscore(game_id)
+        except Exception:
+            box = None
+
+        games.append(
+            {
+                "game_id": game_id,
+                "matchup": f"{g.get('away_team_name')} @ {g.get('home_team_name')}",
+                "status": g.get("status"),
+                "boxscore": box,
+            }
+        )
+
+    return {
+        "date": today,
+        "games": games,
+    }
