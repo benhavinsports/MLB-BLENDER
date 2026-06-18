@@ -38,8 +38,18 @@ class BlenderEngine:
         except Exception as e:
             return {"game_id": game_id, "error": str(e)}
 
-        home_team = game.get("home_team_name")
-        away_team = game.get("away_team_name")
+        # FIX: safe fallback for missing schedule fields
+        home_team = (
+            game.get("home_team_name")
+            or box.get("home", {}).get("team_name")
+            or "HOME"
+        )
+
+        away_team = (
+            game.get("away_team_name")
+            or box.get("away", {}).get("team_name")
+            or "AWAY"
+        )
 
         hitters = self.build_hitter_pool(lineup)
 
@@ -65,10 +75,10 @@ class BlenderEngine:
         }
 
     # =========================================================
-    # HITTER POOL (FIXED + SAFE)
+    # HITTER POOL (ROBUST MLB SAFE PARSER)
     # =========================================================
 
-    def build_hitter_pool(self, lineup):
+    def build_hitter_pool(self, lineup: Dict[str, Any]):
 
         hitters = []
 
@@ -77,7 +87,12 @@ class BlenderEngine:
 
         for side in ["home", "away"]:
 
-            for p in lineup.get(side, []):
+            players = lineup.get(side, [])
+
+            if not isinstance(players, list):
+                continue
+
+            for p in players:
 
                 if not isinstance(p, dict):
                     continue
@@ -85,16 +100,15 @@ class BlenderEngine:
                 player_id = p.get("player_id")
                 name = p.get("name")
 
-                if not name:
+                if not player_id or not name:
                     continue
 
                 logs = []
 
-                if player_id:
-                    try:
-                        logs = self.api.get_player_game_logs(player_id)
-                    except:
-                        logs = []
+                try:
+                    logs = self.api.get_player_game_logs(player_id)
+                except Exception:
+                    logs = []
 
                 ab = sum(g.get("ab", 0) for g in logs)
                 hits = sum(g.get("hits", 0) for g in logs)
@@ -102,26 +116,38 @@ class BlenderEngine:
                 bb = sum(g.get("bb", 0) for g in logs)
                 so = sum(g.get("so", 0) for g in logs)
 
-                score = (
-                    hits * 1.5 +
-                    hr * 3.0 +
-                    (hits / max(ab, 1)) * 2.0
-                )
+                # =================================================
+                # SIMPLE MLB INTELLIGENCE MODEL (STABLE VERSION)
+                # =================================================
+
+                avg = hits / max(ab, 1)
+
+                power = hr * 2.5
+                contact = avg * 10
+                discipline = bb * 0.5
+                penalty = so * 0.2
+
+                score = contact + power + discipline - penalty
 
                 hitters.append({
                     "player_id": player_id,
                     "name": name,
                     "team_side": side,
+
                     "ab": max(ab, 1),
                     "hits": hits,
                     "hr": hr,
                     "bb": bb,
                     "so": so,
+
                     "score": score,
                 })
 
         return hitters
 
+    # =========================================================
+    # OPTIONAL (SAFE RUNNER)
+    # =========================================================
 
 def run_blender():
     return BlenderEngine().run_today()
