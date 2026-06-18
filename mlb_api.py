@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import time
 from datetime import date
-from typing import Any, Dict, Optional
+from typing import Dict, List
+
 import requests
 
 
@@ -23,94 +24,267 @@ class MLBDataError(MLBAPIError):
 
 class MLBAPI:
 
-    def __init__(self, timeout=20, retries=3, backoff=1.5):
+    def __init__(
+        self,
+        timeout: int = 20,
+        retries: int = 3,
+        backoff: float = 1.5,
+    ):
         self.timeout = timeout
         self.retries = retries
         self.backoff = backoff
         self.session = requests.Session()
 
-    def _get(self, endpoint: str, params=None):
+    # =========================================================
+    # HTTP
+    # =========================================================
+
+    def _get(
+        self,
+        endpoint: str,
+        params=None,
+    ):
 
         url = f"{BASE_URL}{endpoint}"
 
-        for i in range(self.retries):
+        for attempt in range(self.retries):
 
             try:
-                r = self.session.get(url, params=params, timeout=self.timeout)
 
-                if r.status_code == 429:
-                    time.sleep(self.backoff * (i + 1))
+                response = self.session.get(
+                    url,
+                    params=params,
+                    timeout=self.timeout,
+                )
+
+                if response.status_code == 429:
+
+                    time.sleep(
+                        self.backoff * (attempt + 1)
+                    )
+
                     continue
 
-                r.raise_for_status()
-                return r.json()
+                response.raise_for_status()
 
-            except Exception as e:
-                if i == self.retries - 1:
-                    raise MLBRequestError(str(e))
-                time.sleep(self.backoff * (i + 1))
+                return response.json()
+
+            except Exception as exc:
+
+                if attempt == self.retries - 1:
+                    raise MLBRequestError(
+                        str(exc)
+                    )
+
+                time.sleep(
+                    self.backoff * (attempt + 1)
+                )
+
+    # =========================================================
+    # DATE
+    # =========================================================
 
     def today(self):
+
         return date.today().isoformat()
 
-    def get_schedule(self, target_date=None):
+    # =========================================================
+    # SCHEDULE
+    # =========================================================
+
+    def get_schedule(
+        self,
+        target_date=None,
+    ):
 
         if not target_date:
             target_date = self.today()
 
-        data = self._get("/schedule", {
-            "sportId": 1,
-            "date": target_date
-        })
+        data = self._get(
+            "/schedule",
+            {
+                "sportId": 1,
+                "date": target_date,
+            },
+        )
 
         games = []
 
-        for d in data.get("dates", []):
-            for g in d.get("games", []):
+        for d in data.get(
+            "dates",
+            [],
+        ):
 
-                games.append({
-                    "game_id": g.get("gamePk"),
-                    "away": g["teams"]["away"]["team"]["name"],
-                    "home": g["teams"]["home"]["team"]["name"],
-                })
+            for g in d.get(
+                "games",
+                [],
+            ):
+
+                games.append(
+                    {
+                        "game_id": g.get(
+                            "gamePk"
+                        ),
+                        "away": g["teams"][
+                            "away"
+                        ]["team"]["name"],
+                        "home": g["teams"][
+                            "home"
+                        ]["team"]["name"],
+                    }
+                )
 
         return games
 
-    def get_boxscore(self, game_id):
+    # =========================================================
+    # BOXSCORE
+    # =========================================================
 
-        return self._get(f"/game/{game_id}/boxscore")
+    def get_boxscore(
+        self,
+        game_id,
+    ):
 
-    def get_player_game_logs(self, player_id):
+        return self._get(
+            f"/game/{game_id}/boxscore"
+        )
+
+    # =========================================================
+    # PLAYER GAME LOGS
+    # =========================================================
+
+    def get_player_game_logs(
+        self,
+        player_id,
+        season="2026",
+    ):
 
         data = self._get(
             f"/people/{player_id}/stats",
             {
                 "stats": "gameLog",
                 "group": "hitting",
-                "season": "2026"
-            }
+                "season": season,
+            },
         )
 
-        return data
+        try:
 
-    def get_team_roster(self, team_id):
+            return (
+                data["stats"][0]["splits"]
+            )
 
-        return self._get(f"/teams/{team_id}/roster")
+        except Exception:
 
-    def get_starting_lineup(self, game_id):
+            return []
 
-        box = self.get_boxscore(game_id)
+    # =========================================================
+    # TEAM ROSTER
+    # =========================================================
 
-        return {
-            "home": box.get("teams", {}).get("home", {}),
-            "away": box.get("teams", {}).get("away", {}),
-        }
+    def get_team_roster(
+        self,
+        team_id,
+    ):
 
-    def get_today_games_bundle(self):
+        return self._get(
+            f"/teams/{team_id}/roster"
+        )
 
-        schedule = self.get_schedule()
+    # =========================================================
+    # STARTING LINEUP
+    # =========================================================
+
+    def get_starting_lineup(
+        self,
+        game_id,
+    ):
+
+        box = self.get_boxscore(
+            game_id
+        )
+
+        lineup = []
+
+        teams = box.get(
+            "teams",
+            {},
+        )
+
+        for side in [
+            "home",
+            "away",
+        ]:
+
+            team = teams.get(
+                side,
+                {},
+            )
+
+            batters = team.get(
+                "batters",
+                [],
+            )
+
+            players = team.get(
+                "players",
+                {},
+            )
+
+            slot = 1
+
+            for player_id in batters:
+
+                player_key = (
+                    f"ID{player_id}"
+                )
+
+                pdata = players.get(
+                    player_key
+                )
+
+                if not pdata:
+                    continue
+
+                person = pdata.get(
+                    "person",
+                    {},
+                )
+
+                name = person.get(
+                    "fullName"
+                )
+
+                if not name:
+                    continue
+
+                logs = self.get_player_game_logs(
+                    player_id
+                )
+
+                lineup.append(
+                    {
+                        "player_id": player_id,
+                        "name": name,
+                        "lineup_slot": slot,
+                        "team_side": side,
+                        "game_logs": logs,
+                    }
+                )
+
+                slot += 1
+
+        return lineup
+
+    # =========================================================
+    # DAILY BUNDLE
+    # =========================================================
+
+    def get_today_games_bundle(
+        self,
+    ):
 
         return {
             "date": self.today(),
-            "games": schedule
+            "games": self.get_schedule(),
         }
