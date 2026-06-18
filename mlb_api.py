@@ -1,290 +1,121 @@
 from __future__ import annotations
 
-import time
-from datetime import date
-from typing import Dict, List
-
-import requests
+from typing import Any, Dict, List
+from mlb_api import MLBAPI
 
 
-BASE_URL = "https://statsapi.mlb.com/api/v1"
+class BlenderEngine:
 
-
-class MLBAPIError(Exception):
-    pass
-
-
-class MLBRequestError(MLBAPIError):
-    pass
-
-
-class MLBDataError(MLBAPIError):
-    pass
-
-
-class MLBAPI:
-
-    def __init__(
-        self,
-        timeout: int = 20,
-        retries: int = 3,
-        backoff: float = 1.5,
-    ):
-        self.timeout = timeout
-        self.retries = retries
-        self.backoff = backoff
-        self.session = requests.Session()
+    def __init__(self):
+        self.api = MLBAPI()
 
     # =========================================================
-    # HTTP
+    # ENTRY
     # =========================================================
 
-    def _get(
-        self,
-        endpoint: str,
-        params=None,
-    ):
-
-        url = f"{BASE_URL}{endpoint}"
-
-        for attempt in range(self.retries):
-
-            try:
-
-                response = self.session.get(
-                    url,
-                    params=params,
-                    timeout=self.timeout,
-                )
-
-                if response.status_code == 429:
-
-                    time.sleep(
-                        self.backoff * (attempt + 1)
-                    )
-
-                    continue
-
-                response.raise_for_status()
-
-                return response.json()
-
-            except Exception as exc:
-
-                if attempt == self.retries - 1:
-                    raise MLBRequestError(
-                        str(exc)
-                    )
-
-                time.sleep(
-                    self.backoff * (attempt + 1)
-                )
+    def run_today(self):
+        schedule = self.api.get_schedule()
+        return [self.run_game(game) for game in schedule]
 
     # =========================================================
-    # DATE
+    # GAME CORE
     # =========================================================
 
-    def today(self):
+    def run_game(self, game: Dict[str, Any]):
 
-        return date.today().isoformat()
-
-    # =========================================================
-    # SCHEDULE
-    # =========================================================
-
-    def get_schedule(
-        self,
-        target_date=None,
-    ):
-
-        if not target_date:
-            target_date = self.today()
-
-        data = self._get(
-            "/schedule",
-            {
-                "sportId": 1,
-                "date": target_date,
-            },
-        )
-
-        games = []
-
-        for d in data.get(
-            "dates",
-            [],
-        ):
-
-            for g in d.get(
-                "games",
-                [],
-            ):
-
-                games.append(
-                    {
-                        "game_id": g.get(
-                            "gamePk"
-                        ),
-                        "away": g["teams"][
-                            "away"
-                        ]["team"]["name"],
-                        "home": g["teams"][
-                            "home"
-                        ]["team"]["name"],
-                    }
-                )
-
-        return games
-
-    # =========================================================
-    # BOXSCORE
-    # =========================================================
-
-    def get_boxscore(
-        self,
-        game_id,
-    ):
-
-        return self._get(
-            f"/game/{game_id}/boxscore"
-        )
-
-    # =========================================================
-    # PLAYER GAME LOGS
-    # =========================================================
-
-    def get_player_game_logs(
-        self,
-        player_id,
-        season="2026",
-    ):
-
-        data = self._get(
-            f"/people/{player_id}/stats",
-            {
-                "stats": "gameLog",
-                "group": "hitting",
-                "season": season,
-            },
-        )
+        game_id = game.get("game_id")
 
         try:
+            lineup = self.api.get_starting_lineup(game_id)
+        except Exception as e:
+            return {"game_id": game_id, "error": str(e)}
 
-            return (
-                data["stats"][0]["splits"]
-            )
+        home_team = game.get("home")
+        away_team = game.get("away")
 
-        except Exception:
+        hitters = self.build_hitter_pool(lineup)
 
-            return []
+        if not hitters:
+            return {
+                "game_id": game_id,
+                "matchup": f"{away_team} @ {home_team}",
+                "survivor": None,
+                "error": "No valid hitters found",
+                "home": home_team,
+                "away": away_team,
+            }
 
-    # =========================================================
-    # TEAM ROSTER
-    # =========================================================
-
-    def get_team_roster(
-        self,
-        team_id,
-    ):
-
-        return self._get(
-            f"/teams/{team_id}/roster"
-        )
-
-    # =========================================================
-    # STARTING LINEUP
-    # =========================================================
-
-    def get_starting_lineup(
-        self,
-        game_id,
-    ):
-
-        box = self.get_boxscore(
-            game_id
-        )
-
-        lineup = []
-
-        teams = box.get(
-            "teams",
-            {},
-        )
-
-        for side in [
-            "home",
-            "away",
-        ]:
-
-            team = teams.get(
-                side,
-                {},
-            )
-
-            batters = team.get(
-                "batters",
-                [],
-            )
-
-            players = team.get(
-                "players",
-                {},
-            )
-
-            slot = 1
-
-            for player_id in batters:
-
-                player_key = (
-                    f"ID{player_id}"
-                )
-
-                pdata = players.get(
-                    player_key
-                )
-
-                if not pdata:
-                    continue
-
-                person = pdata.get(
-                    "person",
-                    {},
-                )
-
-                name = person.get(
-                    "fullName"
-                )
-
-                if not name:
-                    continue
-
-                logs = self.get_player_game_logs(
-                    player_id
-                )
-
-                lineup.append(
-                    {
-                        "player_id": player_id,
-                        "name": name,
-                        "lineup_slot": slot,
-                        "team_side": side,
-                        "game_logs": logs,
-                    }
-                )
-
-                slot += 1
-
-        return lineup
-
-    # =========================================================
-    # DAILY BUNDLE
-    # =========================================================
-
-    def get_today_games_bundle(
-        self,
-    ):
+        survivor = max(hitters, key=lambda x: x["score"])
 
         return {
-            "date": self.today(),
-            "games": self.get_schedule(),
+            "game_id": game_id,
+            "matchup": f"{away_team} @ {home_team}",
+            "survivor": survivor,
+            "home": home_team,
+            "away": away_team,
+            "candidates": len(hitters),
         }
+
+    # =========================================================
+    # HITTER POOL (FIXED STRUCTURE)
+    # =========================================================
+
+    def build_hitter_pool(self, lineup: Dict[str, Any]):
+
+        hitters = []
+
+        for side in ["home", "away"]:
+
+            players = lineup.get(side, [])
+
+            if not isinstance(players, list):
+                continue
+
+            for p in players:
+
+                if not isinstance(p, dict):
+                    continue
+
+                player_id = p.get("player_id")
+                name = p.get("name")
+
+                if not player_id or not name:
+                    continue
+
+                try:
+                    logs = self.api.get_player_game_logs(player_id)
+                except:
+                    logs = []
+
+                ab = sum(g.get("ab", 0) for g in logs)
+                hits = sum(g.get("hits", 0) for g in logs)
+                hr = sum(g.get("hr", 0) for g in logs)
+                bb = sum(g.get("bb", 0) for g in logs)
+                so = sum(g.get("so", 0) for g in logs)
+
+                avg = hits / max(ab, 1)
+
+                score = (
+                    avg * 10
+                    + hr * 2.5
+                    + bb * 0.5
+                    - so * 0.2
+                )
+
+                hitters.append({
+                    "player_id": player_id,
+                    "name": name,
+                    "team_side": side,
+                    "ab": max(ab, 1),
+                    "hits": hits,
+                    "hr": hr,
+                    "bb": bb,
+                    "so": so,
+                    "score": score,
+                })
+
+        return hitters
+
+
+def run_blender():
+    return BlenderEngine().run_today()
