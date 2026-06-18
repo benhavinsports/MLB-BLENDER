@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List
-
 from mlb_api import MLBAPI
 
 
@@ -11,18 +10,12 @@ class BlenderEngine:
         self.api = MLBAPI()
 
     # =========================================================
-    # ENTRYPOINT
+    # ENTRY
     # =========================================================
 
     def run_today(self):
-
         schedule = self.api.get_schedule()
-        results = []
-
-        for game in schedule:
-            results.append(self.run_game(game))
-
-        return results
+        return [self.run_game(game) for game in schedule]
 
     # =========================================================
     # GAME CORE
@@ -33,23 +26,12 @@ class BlenderEngine:
         game_id = game.get("game_id")
 
         try:
-            box = self.api.get_boxscore(game_id)
             lineup = self.api.get_starting_lineup(game_id)
         except Exception as e:
             return {"game_id": game_id, "error": str(e)}
 
-        # FIX: safe fallback for missing schedule fields
-        home_team = (
-            game.get("home_team_name")
-            or box.get("home", {}).get("team_name")
-            or "HOME"
-        )
-
-        away_team = (
-            game.get("away_team_name")
-            or box.get("away", {}).get("team_name")
-            or "AWAY"
-        )
+        home_team = game.get("home")
+        away_team = game.get("away")
 
         hitters = self.build_hitter_pool(lineup)
 
@@ -58,7 +40,7 @@ class BlenderEngine:
                 "game_id": game_id,
                 "matchup": f"{away_team} @ {home_team}",
                 "survivor": None,
-                "error": "No starting hitters found",
+                "error": "No valid hitters found",
                 "home": home_team,
                 "away": away_team,
             }
@@ -75,15 +57,12 @@ class BlenderEngine:
         }
 
     # =========================================================
-    # HITTER POOL (ROBUST MLB SAFE PARSER)
+    # HITTER POOL (FIXED STRUCTURE)
     # =========================================================
 
     def build_hitter_pool(self, lineup: Dict[str, Any]):
 
         hitters = []
-
-        if not isinstance(lineup, dict):
-            return hitters
 
         for side in ["home", "away"]:
 
@@ -103,11 +82,9 @@ class BlenderEngine:
                 if not player_id or not name:
                     continue
 
-                logs = []
-
                 try:
                     logs = self.api.get_player_game_logs(player_id)
-                except Exception:
+                except:
                     logs = []
 
                 ab = sum(g.get("ab", 0) for g in logs)
@@ -116,38 +93,29 @@ class BlenderEngine:
                 bb = sum(g.get("bb", 0) for g in logs)
                 so = sum(g.get("so", 0) for g in logs)
 
-                # =================================================
-                # SIMPLE MLB INTELLIGENCE MODEL (STABLE VERSION)
-                # =================================================
-
                 avg = hits / max(ab, 1)
 
-                power = hr * 2.5
-                contact = avg * 10
-                discipline = bb * 0.5
-                penalty = so * 0.2
-
-                score = contact + power + discipline - penalty
+                score = (
+                    avg * 10
+                    + hr * 2.5
+                    + bb * 0.5
+                    - so * 0.2
+                )
 
                 hitters.append({
                     "player_id": player_id,
                     "name": name,
                     "team_side": side,
-
                     "ab": max(ab, 1),
                     "hits": hits,
                     "hr": hr,
                     "bb": bb,
                     "so": so,
-
                     "score": score,
                 })
 
         return hitters
 
-    # =========================================================
-    # OPTIONAL (SAFE RUNNER)
-    # =========================================================
 
 def run_blender():
     return BlenderEngine().run_today()
