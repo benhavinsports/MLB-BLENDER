@@ -77,6 +77,9 @@ class BlenderEngine:
         for side in ["home", "away"]:
 
             for p in lineup.get(side, []):
+                print(type(p))
+print(p)
+                
 
                 player_id = p.get("player_id")
                 name = p.get("name")
