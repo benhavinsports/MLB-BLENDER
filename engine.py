@@ -69,52 +69,86 @@ class BlenderEngine:
     # =========================================================
     # HITTER POOL (CORRECTED ARCHITECTURE)
     # =========================================================
+def build_hitter_pool(self, lineup):
 
-    def build_hitter_pool(self, lineup: Dict[str, Any]):
+    hitters = []
 
-        hitters = []
+    for side in ["home", "away"]:
 
-        for side in ["home", "away"]:
+        side_players = lineup.get(side, [])
 
-            for p in lineup.get(side, []):
-                print(type(p))
-print(p)
-                
+        for p in side_players:
+
+            # Handle dict format
+            if isinstance(p, dict):
 
                 player_id = p.get("player_id")
                 name = p.get("name")
 
-                if not player_id or not name:
-                    continue
+            # Handle string format
+            elif isinstance(p, str):
 
-                logs = []
+                player_id = None
+                name = p
+
+            else:
+                continue
+
+            if not name:
+                continue
+
+            logs = []
+
+            if player_id:
+
                 try:
-                    logs = self.api.get_player_game_logs(player_id)
-                except:
+                    logs = self.api.get_player_game_logs(
+                        player_id
+                    )
+                except Exception:
                     logs = []
 
-                ab = sum(g.get("ab", 0) for g in logs)
-                hits = sum(g.get("hits", 0) for g in logs)
-                hr = sum(g.get("hr", 0) for g in logs)
-                bb = sum(g.get("bb", 0) for g in logs)
-                so = sum(g.get("so", 0) for g in logs)
+            ab = sum(
+                g.get("ab", 0)
+                for g in logs
+            )
 
-                hitters.append({
+            hits = sum(
+                g.get("hits", 0)
+                for g in logs
+            )
+
+            hr = sum(
+                g.get("hr", 0)
+                for g in logs
+            )
+
+            bb = sum(
+                g.get("bb", 0)
+                for g in logs
+            )
+
+            so = sum(
+                g.get("so", 0)
+                for g in logs
+            )
+
+            hitters.append(
+                {
                     "player_id": player_id,
                     "name": name,
                     "team_side": side,
-
                     "ab": max(ab, 1),
                     "hits": hits,
                     "hr": hr,
                     "bb": bb,
                     "so": so,
-
                     "score": 0.0,
                     "risk": 0.0,
-                })
+                }
+            )
 
-        return hitters
+    return hitters
 
     # =========================================================
     # G0–G18 PIPELINE (UNCHANGED LOGIC CORE)
