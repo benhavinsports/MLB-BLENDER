@@ -1,0 +1,8 @@
+
+Requirements.txt 
+streamlit>=1.35.0
+requests>=2.31.0
+pandas>=2.2.2
+numpy>=1.26.4
+python-dateutil>=2.9.0
+pytz>=2025.1
