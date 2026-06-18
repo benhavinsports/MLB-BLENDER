@@ -6,7 +6,7 @@ from mlb_api import MLBAPI
 
 
 # ============================================================
-# MLB BLENDER ENGINE v3 (FULL REWRITE - STABLE)
+# MLB BLENDER ENGINE vFINAL (STABLE BUILD)
 # ============================================================
 
 class BlenderEngine:
@@ -22,7 +22,10 @@ class BlenderEngine:
 
         bundle = self.api.get_today_games_bundle()
 
-        games = bundle.get("games", []) if isinstance(bundle, dict) else []
+        if not isinstance(bundle, dict):
+            return []
+
+        games = bundle.get("games", [])
 
         results = []
 
@@ -36,7 +39,7 @@ class BlenderEngine:
         return results
 
     # =========================================================
-    # SINGLE GAME PIPELINE
+    # GAME ENGINE
     # =========================================================
 
     def run_game(self, game: Dict[str, Any]) -> Dict[str, Any]:
@@ -48,26 +51,26 @@ class BlenderEngine:
         except Exception as e:
             return {
                 "game_id": game_id,
-                "error": f"boxscore failed: {str(e)}",
+                "error": f"boxscore error: {str(e)}"
             }
 
         teams = box.get("teams", {})
 
         home_team = (
             teams.get("home", {})
-                  .get("team", {})
-                  .get("name", "HOME")
+                 .get("team", {})
+                 .get("name", "HOME")
         )
 
         away_team = (
             teams.get("away", {})
-                  .get("team", {})
-                  .get("name", "AWAY")
+                 .get("team", {})
+                 .get("name", "AWAY")
         )
 
         hitters = self._build_hitter_pool(teams)
 
-        if len(hitters) == 0:
+        if not hitters:
             return {
                 "game_id": game_id,
                 "matchup": f"{away_team} @ {home_team}",
@@ -91,7 +94,7 @@ class BlenderEngine:
         }
 
     # =========================================================
-    # HITTER POOL (FIXED - NO MORE EMPTY RESULTS)
+    # SAFE HITTER POOL BUILDER (FIXED MLB STRUCTURE)
     # =========================================================
 
     def _build_hitter_pool(self, teams: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -101,18 +104,34 @@ class BlenderEngine:
         for side in ["home", "away"]:
 
             team_block = teams.get(side, {})
+
             team_info = team_block.get("team", {})
             team_id = team_info.get("id")
 
-            # fallback to roster API (reliable source)
+            if not team_id:
+                continue
+
             try:
-                roster = self.api.get_team_roster(team_id)
+                roster_data = self.api.get_team_roster(team_id)
             except Exception:
-                roster = []
+                continue
+
+            # MLB API returns {"roster": [...]}
+            roster = roster_data.get("roster", [])
+
+            if not isinstance(roster, list):
+                continue
 
             for p in roster:
 
-                person = p.get("person", {})
+                if not isinstance(p, dict):
+                    continue
+
+                person = p.get("person")
+
+                # sometimes structure is flat fallback
+                if not isinstance(person, dict):
+                    continue
 
                 hitters.append(
                     {
@@ -137,11 +156,11 @@ class BlenderEngine:
 
     def _score_hitter(self, h: Dict[str, Any]) -> Dict[str, Any]:
 
-        ab = max(h["ab"], 1)
+        ab = max(h.get("ab", 1), 1)
 
-        pull_pct = h["hits"] / ab
-        hard_hit_pct = h["hr"] / ab
-        hr_heat = h["hr"]
+        pull_pct = h.get("hits", 0) / ab
+        hard_hit_pct = h.get("hr", 0) / ab
+        hr_heat = h.get("hr", 0)
 
         pitch_edge = 0.0
         condition = 0.05
@@ -163,18 +182,21 @@ class BlenderEngine:
         }
 
     # =========================================================
-    # SURVIVOR SELECTION
+    # SURVIVOR PICK
     # =========================================================
 
     def _select_survivor(self, scored: List[Dict[str, Any]]) -> Dict[str, Any]:
 
+        if not scored:
+            return None
+
         scored = sorted(
             scored,
-            key=lambda x: x["event_score"],
+            key=lambda x: x.get("event_score", 0),
             reverse=True
         )
 
-        return scored[0] if scored else None
+        return scored[0]
 
 
 # ============================================================
