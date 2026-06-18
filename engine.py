@@ -1,7 +1,5 @@
-from __future__ import annotations
-
-from typing import Any, Dict, List
 from mlb_api import MLBAPI
+from gates import run_gates
 
 
 class BlenderEngine:
@@ -9,72 +7,31 @@ class BlenderEngine:
     def __init__(self):
         self.api = MLBAPI()
 
-    # =========================================================
-    # ENTRY
-    # =========================================================
-
     def run_today(self):
+
         schedule = self.api.get_schedule()
-        return [self.run_game(game) for game in schedule]
+        results = []
 
-    # =========================================================
-    # GAME CORE
-    # =========================================================
+        for game in schedule:
+            results.append(self.run_game(game))
 
-    def run_game(self, game: Dict[str, Any]):
+        return results
 
-        game_id = game.get("game_id")
+    def run_game(self, game):
+
+        game_id = game["game_id"]
 
         try:
             lineup = self.api.get_starting_lineup(game_id)
+            box = self.api.get_boxscore(game_id)
         except Exception as e:
             return {"game_id": game_id, "error": str(e)}
-
-        home_team = game.get("home")
-        away_team = game.get("away")
-
-        hitters = self.build_hitter_pool(lineup)
-
-        if not hitters:
-            return {
-                "game_id": game_id,
-                "matchup": f"{away_team} @ {home_team}",
-                "survivor": None,
-                "error": "No valid hitters found",
-                "home": home_team,
-                "away": away_team,
-            }
-
-        survivor = max(hitters, key=lambda x: x["score"])
-
-        return {
-            "game_id": game_id,
-            "matchup": f"{away_team} @ {home_team}",
-            "survivor": survivor,
-            "home": home_team,
-            "away": away_team,
-            "candidates": len(hitters),
-        }
-
-    # =========================================================
-    # HITTER POOL (FIXED STRUCTURE)
-    # =========================================================
-
-    def build_hitter_pool(self, lineup: Dict[str, Any]):
 
         hitters = []
 
         for side in ["home", "away"]:
 
-            players = lineup.get(side, [])
-
-            if not isinstance(players, list):
-                continue
-
-            for p in players:
-
-                if not isinstance(p, dict):
-                    continue
+            for p in lineup.get(side, []):
 
                 player_id = p.get("player_id")
                 name = p.get("name")
@@ -82,39 +39,34 @@ class BlenderEngine:
                 if not player_id or not name:
                     continue
 
-                try:
-                    logs = self.api.get_player_game_logs(player_id)
-                except:
-                    logs = []
-
-                ab = sum(g.get("ab", 0) for g in logs)
-                hits = sum(g.get("hits", 0) for g in logs)
-                hr = sum(g.get("hr", 0) for g in logs)
-                bb = sum(g.get("bb", 0) for g in logs)
-                so = sum(g.get("so", 0) for g in logs)
-
-                avg = hits / max(ab, 1)
-
-                score = (
-                    avg * 10
-                    + hr * 2.5
-                    + bb * 0.5
-                    - so * 0.2
-                )
+                logs = self.api.get_player_game_logs(player_id)
 
                 hitters.append({
                     "player_id": player_id,
                     "name": name,
                     "team_side": side,
-                    "ab": max(ab, 1),
-                    "hits": hits,
-                    "hr": hr,
-                    "bb": bb,
-                    "so": so,
-                    "score": score,
+                    "lineup_slot": p.get("lineup_slot", 99),
+                    "game_logs": logs
                 })
 
-        return hitters
+        if not hitters:
+            return {
+                "game_id": game_id,
+                "matchup": f"{game['away_team_name']} @ {game['home_team_name']}",
+                "error": "No hitters found"
+            }
+
+        result = run_gates(
+            lineup=hitters,
+            game_bundle=game,
+            pitcher_stats={}
+        )
+
+        return {
+            "game_id": game_id,
+            "matchup": f"{game['away_team_name']} @ {game['home_team_name']}",
+            **result
+        }
 
 
 def run_blender():
