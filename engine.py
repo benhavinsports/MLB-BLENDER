@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Any
 
-from mlb_api import mlb_api
+from mlb_api import MLBAPI
 from gates import run_gates
 
 
@@ -27,7 +27,7 @@ class BlenderEngine:
     """
 
     def __init__(self):
-        self.api = mlb_api()
+        self.api =MLBAPI ()
 
     # ============================================================
     # PITCHER EXTRACTION
