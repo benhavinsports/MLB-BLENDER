@@ -6,17 +6,16 @@ from mlb_api import MLBAPI
 
 
 # ============================================================
-# MLB BLENDER ENGINE v1 (REWRITE)
+# MLB BLENDER ENGINE v2 (CLEAN FIXED BUILD)
 # ============================================================
 
 class BlenderEngine:
 
     def __init__(self):
-
         self.api = MLBAPI()
 
     # =========================================================
-    # MAIN ENTRY
+    # ENTRYPOINT
     # =========================================================
 
     def run_today(self) -> List[Dict[str, Any]]:
@@ -37,7 +36,7 @@ class BlenderEngine:
         return results
 
     # =========================================================
-    # GAME PIPELINE
+    # GAME PROCESSOR
     # =========================================================
 
     def run_game(self, game: Dict[str, Any]) -> Dict[str, Any]:
@@ -46,73 +45,71 @@ class BlenderEngine:
 
         box = self.api.get_boxscore(game_id)
 
-        home_team = (
+        home = (
             box.get("teams", {})
                .get("home", {})
                .get("team", {})
                .get("name", "HOME")
         )
 
-        away_team = (
+        away = (
             box.get("teams", {})
                .get("away", {})
                .get("team", {})
                .get("name", "AWAY")
         )
 
-        # =====================================================
-        # STEP 1 — BUILD HITTER POOL (SAFE BASELINE)
-        # =====================================================
-
         hitters = self._build_hitter_pool(box)
 
         if not hitters:
-            return self._empty_result(game_id, home_team, away_team)
-
-        # =====================================================
-        # STEP 2 — SCORE ALL HITTERS (DETERMINISTIC)
-        # =====================================================
+            return {
+                "game_id": game_id,
+                "matchup": f"{away} @ {home}",
+                "survivor": None,
+                "error": "No valid hitters found",
+                "home": home,
+                "away": away,
+            }
 
         scored = [self._score_hitter(h) for h in hitters]
 
-        # =====================================================
-        # STEP 3 — ELIMINATION (LOWEST SCORE REMOVED ITERATIVELY)
-        # =====================================================
-
-        survivor = self._eliminate(scored)
+        survivor = self._select_survivor(scored)
 
         return {
             "game_id": game_id,
-            "matchup": f"{away_team} @ {home_team}",
+            "matchup": f"{away} @ {home}",
             "survivor": survivor,
-            "home": home_team,
-            "away": away_team,
+            "home": home,
+            "away": away,
             "candidates": len(hitters),
         }
 
     # =========================================================
-    # HITTER POOL
+    # HITTER POOL BUILDER (FIXED MLB STRUCTURE)
     # =========================================================
 
     def _build_hitter_pool(self, box: Dict[str, Any]) -> List[Dict[str, Any]]:
 
         hitters = []
+        teams = box.get("teams", {})
 
         for side in ["home", "away"]:
 
-            team_block = (
-                box.get("teams", {})
-                   .get(side, {})
-                   .get("players", {})
-            )
+            team_block = teams.get(side, {})
+            players = team_block.get("players", {})
 
-            for p in team_block.values():
+            if not isinstance(players, dict):
+                continue
+
+            for _, p in players.items():
+
+                if not isinstance(p, dict):
+                    continue
 
                 person = p.get("person", {})
-                stats = p.get("stats", {}).get("batting", {})
+                stats = p.get("stats", {}).get("batting")
 
-                # Only include batters with at least 1 AB
-                if not stats or stats.get("atBats", 0) == 0:
+                if not stats:
                     continue
 
                 hitters.append(
@@ -132,32 +129,25 @@ class BlenderEngine:
         return hitters
 
     # =========================================================
-    # SCORING MODEL (DETERMINISTIC)
+    # SCORING ENGINE (DETERMINISTIC)
     # =========================================================
 
     def _score_hitter(self, h: Dict[str, Any]) -> Dict[str, Any]:
 
-        ab = h["ab"]
+        ab = h["ab"] or 1
         hits = h["hits"]
 
-        # Pull %
-        pull_pct = (hits / ab) if ab > 0 else 0.0
+        pull_pct = hits / ab
+        hard_hit_pct = h["hr"] / ab
 
-        # Hard hit proxy (HR rate)
-        hard_hit = (h["hr"] / ab) if ab > 0 else 0.0
-
-        # HR heat (recent proxy simplified here)
         hr_heat = h["hr"]
 
-        # Pitch edge (neutral baseline in v1)
         pitch_edge = 0.0
-
-        # Condition boost (stable bias)
         condition = 0.05
 
         event_score = (
             pull_pct * 0.40 +
-            hard_hit * 0.35 +
+            hard_hit_pct * 0.35 +
             pitch_edge * 1.25 +
             condition +
             hr_heat * 0.10
@@ -166,43 +156,24 @@ class BlenderEngine:
         return {
             **h,
             "pull_pct": round(pull_pct, 4),
-            "hard_hit_pct": round(hard_hit, 4),
+            "hard_hit_pct": round(hard_hit_pct, 4),
             "hr_heat": hr_heat,
-            "pitch_edge": pitch_edge,
             "event_score": round(event_score, 4),
         }
 
     # =========================================================
-    # ELIMINATION ENGINE (LOWEST OUT)
+    # SURVIVOR SELECTION
     # =========================================================
 
-    def _eliminate(self, hitters: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _select_survivor(self, scored: List[Dict[str, Any]]) -> Dict[str, Any]:
 
-        # deterministic sorting
-        hitters = sorted(
-            hitters,
+        scored = sorted(
+            scored,
             key=lambda x: x["event_score"],
             reverse=True
         )
 
-        survivor = hitters[0] if hitters else None
-
-        return survivor
-
-    # =========================================================
-    # EMPTY RESULT HANDLER
-    # =========================================================
-
-    def _empty_result(self, game_id, home, away):
-
-        return {
-            "game_id": game_id,
-            "matchup": f"{away} @ {home}",
-            "survivor": None,
-            "error": "No valid hitters found",
-            "home": home,
-            "away": away,
-        }
+        return scored[0] if scored else None
 
 
 # ============================================================
@@ -224,11 +195,11 @@ if __name__ == "__main__":
 
     results = run_blender()
 
-    for g in results:
+    for r in results:
 
-        print(g["matchup"])
+        print(r["matchup"])
 
-        if g.get("survivor"):
-            print("SURVIVOR:", g["survivor"]["name"])
+        if r.get("survivor"):
+            print("SURVIVOR:", r["survivor"]["name"])
         else:
-            print("NO SURVIVOR")
+            print("ERROR:", r.get("error"))
