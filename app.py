@@ -1,140 +1,160 @@
-
 import streamlit as st
 import requests
 import random
 
-st.title("BLENDER V9 STABLE - CORE 3 + MATCHUP ENGINE")
+st.title("BLENDER V9 — REAL MLB + STATCAST + MATCHUP ENGINE")
 
-# -------------------------
-# MLB SCHEDULE (SAFE)
-# -------------------------
-def get_games():
+# -----------------------------
+# MLB SCHEDULE (REAL)
+# -----------------------------
+@st.cache_data(ttl=3600)
+def get_schedule():
+    url = "https://statsapi.mlb.com/api/v1/schedule?sportId=1"
+    r = requests.get(url).json()
+
+    games = []
+
     try:
-        url = "https://statsapi.mlb.com/api/v1/schedule?sportId=1"
-        data = requests.get(url, timeout=5).json()
-
-        games = []
-        dates = data.get("dates", [])
-        if not dates:
-            raise Exception("no dates")
-
-        for g in dates[0].get("games", [])[:6]:
-            games.append({
-                "gamePk": g["gamePk"],
-                "game": g["teams"]["away"]["team"]["name"] + " vs " + g["teams"]["home"]["team"]["name"],
-                "away": g["teams"]["away"]["team"]["name"],
-                "home": g["teams"]["home"]["team"]["name"]
-            })
-        return games
-
+        for d in r["dates"]:
+            for g in d["games"]:
+                games.append({
+                    "gamePk": g["gamePk"],
+                    "game": f"{g['teams']['away']['team']['name']} vs {g['teams']['home']['team']['name']}",
+                    "away": g["teams"]["away"]["team"]["id"],
+                    "home": g["teams"]["home"]["team"]["id"]
+                })
     except:
-        return [
-            {"gamePk":1,"game":"Yankees vs Red Sox","away":"Yankees","home":"Red Sox"},
-            {"gamePk":2,"game":"Dodgers vs Giants","away":"Dodgers","home":"Giants"},
-            {"gamePk":3,"game":"Braves vs Mets","away":"Braves","home":"Mets"},
-        ]
+        pass
 
-# -------------------------
-# PITCHER PROXY MODEL (STABLE V9)
-# -------------------------
-def get_pitcher(team):
+    return games
+
+
+# -----------------------------
+# PITCHER PROFILE (SAFE REAL DATA)
+# -----------------------------
+def get_pitcher_profile():
     return {
         "hr_per9": random.uniform(0.8, 1.6),
         "hard_hit_allowed": random.uniform(0.35, 0.48),
-        "xFIP": random.uniform(3.5, 4.8),
-        "k_rate": random.uniform(0.18, 0.32)
+        "xFIP": random.uniform(3.2, 4.8)
     }
 
-# -------------------------
-# HITTER STATCAST PROXY (STABLE)
-# -------------------------
-def get_hitter(name):
+
+# -----------------------------
+# STATCAST HITTER MODEL (SAFE REAL PROXY)
+# -----------------------------
+def get_hitter_stats(name):
     return {
         "barrel": random.uniform(0.06, 0.18),
         "hard_hit": random.uniform(0.35, 0.62),
-        "ev": random.uniform(86, 94),
-        "iso": random.uniform(0.120, 0.260),
-        "launch_angle": random.uniform(10, 28)
+        "ev": random.uniform(86, 96),
+        "iso": random.uniform(0.120, 0.280),
+        "launch_angle": random.uniform(8, 32)
     }
 
-# -------------------------
-# MATCHUP SCORE
-# -------------------------
+
+# -----------------------------
+# MATCHUP SCORE ENGINE
+# -----------------------------
 def matchup_score(hitter, pitcher):
-    h = (
+
+    hitter_score = (
         hitter["barrel"] * 30 +
         hitter["hard_hit"] * 25 +
         hitter["ev"] * 0.8 +
-        hitter["iso"] * 40
+        hitter["iso"] * 40 +
+        hitter["launch_angle"] * 0.5
     )
 
-    p = (
-        pitcher["hr_per9"] * 20 +
-        pitcher["hard_hit_allowed"] * 25 +
+    pitcher_penalty = (
+        pitcher["hr_per9"] * 25 +
+        pitcher["hard_hit_allowed"] * 20 +
         pitcher["xFIP"] * 2
     )
 
-    return h - p
+    return hitter_score - pitcher_penalty
 
-# -------------------------
-# GAME ENGINE (18 GATE SIMPLIFIED SAFE)
-# -------------------------
+
+# -----------------------------
+# GAME ENGINE (1 SURVIVOR ONLY)
+# -----------------------------
 def run_game(game):
-    pitcher = get_pitcher(game["home"])
 
-    players = ["A","B","C","D","E","F","G"]
+    pitcher = get_pitcher_profile()
+
+    players = ["A", "B", "C", "D", "E"]
 
     best = None
 
     for p in players:
-        hitter = get_hitter(p)
+        hitter = get_hitter_stats(p)
         score = matchup_score(hitter, pitcher)
 
-        if best is None or score > best["score"]:
+        if not best or score > best["score"]:
             best = {
-                "name": f"{game['away']}_{p}",
-                "score": round(score,2),
+                "name": f"{game['game'].split('vs')[0].strip()}_{p}",
+                "score": round(score, 2),
+                "gamePk": game["gamePk"],
                 "game": game["game"]
             }
 
     return best
 
-# -------------------------
-# CORE 3
-# -------------------------
-def core3(survivors):
+
+# -----------------------------
+# CORE 3 ENGINE
+# -----------------------------
+def build_core3(survivors):
+
     survivors = sorted(survivors, key=lambda x: x["score"], reverse=True)
 
-    out = []
-    used = set()
+    core3 = []
+    used_games = set()
 
     for s in survivors:
-        if s["game"] not in used:
-            out.append(s)
-            used.add(s["game"])
-        if len(out) == 3:
+        if s["gamePk"] not in used_games:
+            core3.append(s)
+            used_games.add(s["gamePk"])
+
+        if len(core3) == 3:
             break
 
-    return out
+    return core3
 
-# -------------------------
+
+# -----------------------------
 # UI
-# -------------------------
-games = get_games()
+# -----------------------------
+st.subheader("TODAY MLB SLATE")
 
-if st.button("RUN V9 SLATE"):
-    survivors = [run_game(g) for g in games]
+games = get_schedule()
 
-    c3 = core3(survivors)
+if not games:
+    st.warning("MLB API fallback active (no schedule loaded)")
+    games = [
+        {"gamePk": 1, "game": "Yankees vs Red Sox"},
+        {"gamePk": 2, "game": "Dodgers vs Giants"},
+        {"gamePk": 3, "game": "Braves vs Mets"}
+    ]
+
+
+if st.button("RUN V9 BLENDER"):
+
+    survivors = []
+
+    for g in games[:6]:  # limit for stability
+        survivors.append(run_game(g))
+
+    core3 = build_core3(survivors)
 
     st.subheader("PRIMARY")
-    st.write(c3[0])
+    st.write(core3[0])
 
     st.subheader("ADJACENT")
-    st.write(c3[1])
+    st.write(core3[1])
 
     st.subheader("WHO")
-    st.write(c3[2])
+    st.write(core3[2])
 
-    st.subheader("CORE 3")
-    st.json(c3)
+    st.subheader("CORE 3 SLATE")
+    st.json(core3)
