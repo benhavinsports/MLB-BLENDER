@@ -1,0 +1,6 @@
+
+GATES = list(range(1, 19))
+
+PRIMARY_ROLE = "PRIMARY"
+ADJACENT_ROLE = "ADJACENT"
+WHO_ROLE = "WHO"
