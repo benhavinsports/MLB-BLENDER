@@ -1,8 +1,6 @@
-from services.pitcher import get_pitcher_profile
+from services.handedness import get_handedness_profile
 
-def apply_gates(hitters, pitcher_name="unknown"):
-
-    pitcher = get_pitcher_profile(pitcher_name)
+def apply_gates(hitters, pitcher_name="unknown", pitcher_hand="RHP"):
 
     survivors = []
 
@@ -11,25 +9,34 @@ def apply_gates(hitters, pitcher_name="unknown"):
         if not h.get("name"):
             continue
 
-        stats = h.get("score", 0.4)
+        hitter_hand = get_handedness_profile(h["name"])
 
-        # 🎯 MATCHUP WEIGHT (NEW LAYER)
-        matchup_boost = 0.0
+        base_score = h.get("matchup_score", 0.4)
 
-        # power hitters vs power fastball pitchers
-        if pitcher["weakness"] == "power_hitters" and stats > 0.5:
-            matchup_boost += 0.15
+        # ⚖️ HANDEDNESS EDGE LOGIC
+        hand_boost = 0.0
 
-        # timing hitters vs offspeed pitchers
-        if pitcher["weakness"] == "timing_hitters" and stats > 0.45:
-            matchup_boost += 0.12
+        # LHH vs RHP advantage
+        if hitter_hand == "LHH" and pitcher_hand == "RHP":
+            hand_boost += 0.10
 
-        total_score = stats + matchup_boost
+        # RHH vs LHP advantage
+        if hitter_hand == "RHH" and pitcher_hand == "LHP":
+            hand_boost += 0.10
 
-        h["matchup_score"] = total_score
+        # same-side penalty
+        if hitter_hand == "RHH" and pitcher_hand == "RHP":
+            hand_boost -= 0.05
 
-        # 🔒 FINAL GATE LOGIC (STABLE)
-        if total_score < 0.30:
+        if hitter_hand == "LHH" and pitcher_hand == "LHP":
+            hand_boost -= 0.05
+
+        total_score = base_score + hand_boost
+
+        h["hand_score"] = total_score
+
+        # 🔒 STABLE THRESHOLD
+        if total_score < 0.32:
             continue
 
         survivors.append(h)
