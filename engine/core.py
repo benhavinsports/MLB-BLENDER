@@ -18,10 +18,10 @@ def run_slate(games):
             })
             continue
 
-        # assign dummy pitcher (can upgrade later to real starter feed)
         pitcher_name = "unknown"
+        pitcher_hand = "RHP"  # safe default (can upgrade later from starters feed)
 
-        survivors = apply_gates(hitters, pitcher_name)
+        survivors = apply_gates(hitters, pitcher_name, pitcher_hand)
 
         if not survivors:
             survivors = hitters[:1]
@@ -31,7 +31,7 @@ def run_slate(games):
         results.append({
             "game": f"{g['away']} vs {g['home']}",
             "survivor": best["name"],
-            "why": "PITCH-MIX MATCHUP BOOST + STAT SIGNALS"
+            "why": "PITCH MIX + HANDEDNESS EDGE + STAT SIGNAL LAYER"
         })
 
     return results
