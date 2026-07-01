@@ -16,19 +16,11 @@ def get_lineup(gamePk):
 
             for p in players.values():
 
-                # skip pitchers
                 if p.get("position", {}).get("type") == "Pitcher":
                     continue
 
                 hitters.append({
-                    "name": p.get("person", {}).get("fullName"),
-
-                    # REAL DATA ONLY MODE:
-                    # no fake stats → default nulls
-                    "pull_pct": None,
-                    "hh_pct": None,
-                    "pitch_edge": 0.0,
-                    "opportunity": 0.5
+                    "name": p.get("person", {}).get("fullName")
                 })
 
         return hitters
