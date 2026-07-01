@@ -1,26 +1,45 @@
 import requests
+from services.player_map import get_player_name
 
-def get_lineup(gamePk):
+
+def get_confirmed_lineup(gamePk):
+
+    """
+    STRICT MODE:
+    - only uses liveData linescore batting order
+    - enforces 9 hitters max per team
+    - removes incomplete/empty feeds
+    """
 
     try:
         url = f"https://statsapi.mlb.com/api/v1.1/game/{gamePk}/feed/live"
         data = requests.get(url, timeout=10).json()
 
-        box = data.get("liveData", {}).get("boxscore", {})
+        live = data.get("liveData", {})
+        box = live.get("boxscore", {})
         teams = box.get("teams", {})
 
         hitters = []
 
         for side in ["away", "home"]:
-            players = teams.get(side, {}).get("players", {})
 
-            for p in players.values():
+            team_data = teams.get(side, {})
+            batters = team_data.get("batters", [])
 
-                if p.get("position", {}).get("type") == "Pitcher":
-                    continue
+            # 🔒 HARD RULE: must be 9 max
+            batters = batters[:9]
+
+            if len(batters) < 7:
+                # 🚨 invalid lineup feed → reject game integrity
+                return []
+
+            for i, pid in enumerate(batters):
 
                 hitters.append({
-                    "name": p.get("person", {}).get("fullName")
+                    "id": pid,
+                    "name": get_player_name(pid),
+                    "team_side": side,
+                    "slot": i + 1
                 })
 
         return hitters
