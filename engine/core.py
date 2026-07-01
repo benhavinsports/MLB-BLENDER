@@ -1,19 +1,5 @@
 from services.lineup import get_confirmed_lineup
-from engine.gates import apply_gates
-
-
-def resolve_survivor(players):
-
-    if not players:
-        return None
-
-    best = players[0]
-
-    for p in players:
-        if p.get("score", 0) > best.get("score", 0):
-            best = p
-
-    return best
+from engine.gates import apply_elimination_gates
 
 
 def run_slate(games):
@@ -23,33 +9,53 @@ def run_slate(games):
     for g in games:
 
         gamePk = g.get("gamePk")
-        game_label = f"{g.get('away')} vs {g.get('home')}"
+        label = f"{g.get('away')} vs {g.get('home')}"
 
-        hitters = get_confirmed_lineup(gamePk)
+        # -----------------------------
+        # STEP 1 — GET LINEUP
+        # -----------------------------
+        lineup = get_confirmed_lineup(gamePk)
 
-        # 🔒 SAFE CHECK
-        if not hitters:
+        # HARD STOP ONLY IF API FAILS
+        if lineup is None:
             results.append({
-                "game": game_label,
+                "game": label,
+                "survivor": "NO VALID LINEUP",
+                "why": "MLB DATA MISSING"
+            })
+            continue
+
+        if len(lineup) == 0:
+            results.append({
+                "game": label,
                 "survivor": "NO VALID LINEUP",
                 "why": "MLB DATA EMPTY OR NOT POSTED"
             })
             continue
 
-        pitcher = "unknown"
+        # -----------------------------
+        # STEP 2 — PURE ELIMINATION GATES
+        # -----------------------------
+        survivors = apply_elimination_gates(lineup)
 
-        candidates = apply_gates(hitters, pitcher)
+        # -----------------------------
+        # STEP 3 — FINAL SURVIVOR RULE
+        # -----------------------------
+        if len(survivors) == 1:
+            winner = survivors[0]
 
-        # 🔒 NEVER ALLOW EMPTY FINALIZATION
-        if not candidates:
-            candidates = hitters
+        elif len(survivors) > 1:
+            # PURE ELIMINATION RULE:
+            # no scoring, just deterministic pick = first in order
+            winner = survivors[0]
 
-        winner = resolve_survivor(candidates)
+        else:
+            winner = None
 
         results.append({
-            "game": game_label,
+            "game": label,
             "survivor": winner["name"] if winner else "NO SURVIVOR",
-            "why": "STABLE ENGINE PASS"
+            "why": "PURE ELIMINATION ENGINE PASS"
         })
 
     return results
