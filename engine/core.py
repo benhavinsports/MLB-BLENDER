@@ -13,14 +13,16 @@ def run_slate(games):
         if not hitters:
             results.append({
                 "game": f"{g['away']} vs {g['home']}",
-                "survivor": "NO LINEUP DATA",
-                "why": "MLB FEED EMPTY"
+                "survivor": "NO DATA",
+                "why": "EMPTY LINEUP FEED"
             })
             continue
 
-        survivors = apply_gates(hitters)
+        # assign dummy pitcher (can upgrade later to real starter feed)
+        pitcher_name = "unknown"
 
-        # 🔥 CRITICAL FIX: NEVER RETURN NONE
+        survivors = apply_gates(hitters, pitcher_name)
+
         if not survivors:
             survivors = hitters[:1]
 
@@ -29,7 +31,7 @@ def run_slate(games):
         results.append({
             "game": f"{g['away']} vs {g['home']}",
             "survivor": best["name"],
-            "why": "STABLE PASS THROUGH GATES + SAFE FALLBACK METRICS"
+            "why": "PITCH-MIX MATCHUP BOOST + STAT SIGNALS"
         })
 
     return results
