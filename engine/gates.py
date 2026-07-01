@@ -1,44 +1,35 @@
 from services.role_filter import is_valid_hitter
 
 
-def apply_gates(hitters, pitcher_name):
+def apply_elimination_gates(players):
 
     survivors = []
 
-    for h in hitters:
+    for p in players:
 
-        # 🔥 ROLE SAFETY
-        if not is_valid_hitter(h):
+        # -----------------------------
+        # GATE 0 — ROLE FILTER
+        # -----------------------------
+        if not is_valid_hitter(p):
             continue
 
-        base = 0.50
-
-        name = h.get("name", "").lower()
-
-        pitcher = (pitcher_name or "").lower()
-
-        # ⚡ simple matchup bump (safe version)
-        if "fastball" in pitcher:
-            base += 0.05
-
-        if "slider" in pitcher:
-            base += 0.03
-
-        # ⚾ lineup slot value
-        slot = h.get("slot", 9)
-
-        if slot <= 2:
-            base += 0.04
-        elif slot <= 6:
-            base += 0.02
-
-        h["score"] = base
-        h["matchup_score"] = base * 0.2
-
-        # ❌ soft elimination only (IMPORTANT FIX)
-        if base < 0.40:
+        # -----------------------------
+        # GATE 1 — BASIC VALIDITY
+        # -----------------------------
+        if not p.get("name"):
             continue
 
-        survivors.append(h)
+        # -----------------------------
+        # GATE 2 — SLOT CHECK (LIGHT WEIGHT ONLY)
+        # -----------------------------
+        slot = p.get("slot", 9)
+
+        if slot < 1 or slot > 9:
+            continue
+
+        # -----------------------------
+        # PASS THROUGH (NO SCORING)
+        # -----------------------------
+        survivors.append(p)
 
     return survivors
