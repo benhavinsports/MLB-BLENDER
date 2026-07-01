@@ -5,38 +5,38 @@ from services.player_map import get_player_name
 def get_confirmed_lineup(gamePk):
 
     try:
-        url = f"https://statsapi.mlb.com/api/v1/game/{gamePk}/feed/live"
+        url = f"https://statsapi.mlb.com/api/v1.1/game/{gamePk}/feed/live"
         data = requests.get(url, timeout=10).json()
 
+        live = data.get("liveData", {})
         game_data = data.get("gameData", {})
-        live_data = data.get("liveData", {})
-
-        teams = game_data.get("teams", {})
 
         hitters = []
 
-        # ⚠️ REAL FIX: use roster + lineup order fallback
+        # 🔥 PRIMARY SOURCE: linescore offense (MOST RELIABLE MID-LIVE)
+        offense = live.get("linescore", {}).get("offense", {})
+
         for side in ["away", "home"]:
 
-            team = teams.get(side, {})
-            roster = team.get("roster", {})
+            team_offense = offense.get(side, {})
 
-            # fallback: sometimes lineup is stored here
-            lineup = live_data.get("linescore", {}).get("offense", {})
+            batters = team_offense.get("batter", [])
 
-            # we now fallback to boxscore ONLY if needed
-            box = live_data.get("boxscore", {}).get("teams", {}).get(side, {})
+            # 🔴 fallback chain if empty
+            if not batters:
+                players = game_data.get("players", {})
 
-            batters = box.get("batters", [])
+                # extract any hitters tagged ACTIVE
+                batters = [
+                    pid.replace("ID", "")
+                    for pid in players.keys()
+                    if "ID" in pid
+                ][:9]
 
-            # 🔥 FINAL FALLBACK CHAIN
-            candidate_pool = batters or lineup.get(side, []) or []
-
-            # 🚨 last resort: skip instead of kill entire game
-            if not candidate_pool:
+            if not batters:
                 continue
 
-            for i, pid in enumerate(candidate_pool[:9]):
+            for i, pid in enumerate(batters[:9]):
 
                 hitters.append({
                     "id": pid,
@@ -45,7 +45,7 @@ def get_confirmed_lineup(gamePk):
                     "slot": i + 1
                 })
 
-        # 🔒 IMPORTANT: DO NOT hard-fail entire slate anymore
+        # 🔒 ONLY fail if ENTIRE GAME IS EMPTY
         if len(hitters) < 6:
             return []
 
