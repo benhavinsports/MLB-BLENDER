@@ -1,5 +1,4 @@
 import requests
-from services.player_map import get_player_name
 
 
 def get_confirmed_lineup(gamePk):
@@ -8,57 +7,30 @@ def get_confirmed_lineup(gamePk):
         url = f"https://statsapi.mlb.com/api/v1.1/game/{gamePk}/feed/live"
         data = requests.get(url, timeout=10).json()
 
+        box = data.get("liveData", {}).get("boxscore", {})
+        teams = box.get("teams", {})
+
         hitters = []
 
-        game_data = data.get("gameData", {})
-        live_data = data.get("liveData", {})
-
-        teams = game_data.get("teams", {})
-
-        # -----------------------------
-        # 🔥 TIER 1 — OFFICIAL LINEUP (WHEN AVAILABLE)
-        # -----------------------------
+        # -------------------------
+        # extract batters safely
+        # -------------------------
         for side in ["away", "home"]:
 
-            team = teams.get(side, {})
+            team_data = teams.get(side, {})
+            batters = team_data.get("batters", [])
 
-            lineup = team.get("lineup")
+            # if batters exist → assign proper slot order
+            for i, p in enumerate(batters):
 
-            if lineup and isinstance(lineup, list):
+                hitters.append({
+                    "id": p,
+                    "side": side,
+                    "slot": i + 1
+                })
 
-                for i, pid in enumerate(lineup[:9]):
-
-                    hitters.append({
-                        "hitters.append({
-    "id": p,
-    "side": side,
-    "slot": i + 1   # 🔥 REQUIRED FIX
-})
-                    })
-
-        # -----------------------------
-        # 🔥 TIER 2 — BOX SCORE FALLBACK
-        # -----------------------------
-        if len(hitters) == 0:
-
-            box = live_data.get("boxscore", {}).get("teams", {})
-
-            for side in ["away", "home"]:
-
-                batters = box.get(side, {}).get("batters", [])
-
-                for i, pid in enumerate(batters[:9]):
-
-                    hitters.append({
-                        "id": pid,
-                        "name": get_player_name(pid),
-                        "team_side": side,
-                        "slot": i + 1
-                    })
-
-        # -----------------------------
-        # FINAL SAFE RETURN
-        # -----------------------------
+        # IMPORTANT:
+        # never crash engine if empty
         return hitters
 
     except:
