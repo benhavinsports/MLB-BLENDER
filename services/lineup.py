@@ -29,10 +29,11 @@ def get_confirmed_lineup(gamePk):
                 for i, pid in enumerate(lineup[:9]):
 
                     hitters.append({
-                        "id": pid,
-                        "name": get_player_name(pid),
-                        "team_side": side,
-                        "slot": i + 1
+                        "hitters.append({
+    "id": p,
+    "side": side,
+    "slot": i + 1   # 🔥 REQUIRED FIX
+})
                     })
 
         # -----------------------------
