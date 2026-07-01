@@ -1,11 +1,12 @@
 import requests
 from services.player_map import get_player_name
+from services.role_filter import is_valid_hitter
 
 
 def get_confirmed_lineup(gamePk):
 
     try:
-        url = f"https://statsapi.mlb.com/api/v1/game/{gamePk}/feed/live"
+        url = f"https://statsapi.mlb.com/api/v1.1/game/{gamePk}/feed/live"
         data = requests.get(url, timeout=10).json()
 
         game_data = data.get("gameData", {})
@@ -15,50 +16,38 @@ def get_confirmed_lineup(gamePk):
 
         teams = game_data.get("teams", {})
 
-        # -----------------------------
-        # 🔥 TIER 1: OFFICIAL LINEUP (BEST SOURCE)
-        # -----------------------------
         for side in ["away", "home"]:
 
             team = teams.get(side, {})
 
-            lineup = team.get("lineup")  # 🔥 MOST IMPORTANT FIELD
+            # 🔥 PRIMARY SOURCE
+            lineup = team.get("lineup", [])
 
-            if lineup and len(lineup) >= 6:
+            # 🔥 FALLBACK 1
+            if not lineup:
+                lineup = live_data.get("boxscore", {}).get("teams", {}).get(side, {}).get("batters", [])
 
-                for i, pid in enumerate(lineup[:9]):
+            # ❗ DO NOT HARD FAIL
+            if not lineup:
+                continue
 
-                    hitters.append({
-                        "id": pid,
-                        "name": get_player_name(pid),
-                        "team_side": side,
-                        "slot": i + 1
-                    })
+            for i, pid in enumerate(lineup[:9]):
 
-        # -----------------------------
-        # 🔥 TIER 2: LIVE FALLBACK
-        # -----------------------------
-        if len(hitters) < 6:
+                name = get_player_name(pid)
 
-            box = live_data.get("boxscore", {}).get("teams", {})
+                player_obj = {
+                    "id": pid,
+                    "name": name,
+                    "team_side": side,
+                    "slot": i + 1
+                }
 
-            for side in ["away", "home"]:
+                # 🔥 ROLE FILTER (SOFT)
+                if is_valid_hitter(player_obj):
+                    hitters.append(player_obj)
 
-                batters = box.get(side, {}).get("batters", [])
-
-                for i, pid in enumerate(batters[:9]):
-
-                    hitters.append({
-                        "id": pid,
-                        "name": get_player_name(pid),
-                        "team_side": side,
-                        "slot": i + 1
-                    })
-
-        # -----------------------------
-        # 🔥 TIER 3: LAST RESORT (PARTIAL SAFETY)
-        # -----------------------------
-        if len(hitters) < 6:
+        # 🔒 IMPORTANT: ONLY FAIL IF COMPLETELY EMPTY
+        if len(hitters) == 0:
             return []
 
         return hitters
