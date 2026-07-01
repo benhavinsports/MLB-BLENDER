@@ -12,25 +12,18 @@ def get_confirmed_lineup(gamePk):
 
         hitters = []
 
-        # -------------------------
-        # extract batters safely
-        # -------------------------
         for side in ["away", "home"]:
 
-            team_data = teams.get(side, {})
-            batters = team_data.get("batters", [])
+            batters = teams.get(side, {}).get("batters", [])
 
-            # if batters exist → assign proper slot order
-            for i, p in enumerate(batters):
+            for i, player_id in enumerate(batters):
 
                 hitters.append({
-                    "id": p,
-                    "side": side,
-                    "slot": i + 1
+                    "id": player_id,
+                    "slot": i + 1,
+                    "side": side
                 })
 
-        # IMPORTANT:
-        # never crash engine if empty
         return hitters
 
     except:
