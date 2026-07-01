@@ -1,43 +1,65 @@
-from services.pitch_profile import get_pitch_profile
+from services.role_filter import is_valid_hitter
 
-def apply_gates(hitters, pitcher_name="unknown"):
 
-    profile = get_pitch_profile(pitcher_name)
+def apply_gates(hitters, pitcher_name):
+    """
+    ROLE-SAFE MLB BLENDER GATES
+    - hitter-only enforcement
+    - stable scoring
+    - no over-elimination
+    """
 
     survivors = []
 
     for h in hitters:
 
-        if not h.get("name"):
+        # -----------------------------
+        # 🚨 GATE 0 — ROLE VALIDATION
+        # -----------------------------
+        if not is_valid_hitter(h):
             continue
 
-        base = h.get("matchup_score", 0.4)
+        # -----------------------------
+        # ⚙️ BASE SCORE
+        # -----------------------------
+        base = 0.50
 
-        # 🔥 PITCH SEQUENCE EFFECT
-        seq_boost = 0.0
+        name = h.get("name", "").lower()
 
-        if profile["sequence"] == "fastball_heavy":
-            if "power" in h.get("style", "balanced"):
-                seq_boost += 0.12
+        # -----------------------------
+        # ⚡ SIMPLE PITCHER CONTEXT BOOST
+        # -----------------------------
+        pitcher = (pitcher_name or "").lower()
 
-        if profile["sequence"] == "breaking_ball_heavy":
-            seq_boost += 0.08  # timing hitters benefit slightly
+        if any(x in pitcher for x in ["fastball", "burnes", "cole", "strider"]):
+            base += 0.08
 
-        # 🎯 ZONE WEAKNESS EFFECT
-        zone_boost = 0.0
+        if any(x in pitcher for x in ["snell", "kirby", "gallen"]):
+            base += 0.05
 
-        if profile["zone_weakness"] == "high_fastball":
-            zone_boost += 0.10
+        # -----------------------------
+        # 🔥 SLOT VALUE (LINEUP POSITION)
+        # -----------------------------
+        slot = h.get("slot", 9)
 
-        if profile["zone_weakness"] == "low_outside":
-            zone_boost += 0.07
+        if slot <= 2:
+            base += 0.05
+        elif slot <= 6:
+            base += 0.03
+        else:
+            base += 0.00
 
-        total = base + seq_boost + zone_boost
+        # -----------------------------
+        # 🧠 STABILITY CHECK (SAFE PASS ONLY)
+        # -----------------------------
+        h["score"] = base
+        h["matchup_score"] = base * 0.2
 
-        h["final_score"] = total
-
-        # 🔒 STABLE ELIMINATION RULE
-        if total < 0.34:
+        # -----------------------------
+        # ❌ ELIMINATION RULE (SOFT)
+        # -----------------------------
+        # IMPORTANT: do NOT hard-kill too aggressively
+        if base < 0.45:
             continue
 
         survivors.append(h)
