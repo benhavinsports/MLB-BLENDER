@@ -9,34 +9,32 @@ def get_confirmed_lineup(gamePk):
         data = requests.get(url, timeout=10).json()
 
         live = data.get("liveData", {})
-        game_data = data.get("gameData", {})
+        box = live.get("boxscore", {})
+        teams = box.get("teams", {})
 
         hitters = []
 
-        # 🔥 PRIMARY SOURCE: linescore offense (MOST RELIABLE MID-LIVE)
-        offense = live.get("linescore", {}).get("offense", {})
-
         for side in ["away", "home"]:
 
-            team_offense = offense.get(side, {})
+            team = teams.get(side, {})
 
-            batters = team_offense.get("batter", [])
+            # 🔥 ONLY TRUE BATTING LIST
+            batters = team.get("batters", [])
 
-            # 🔴 fallback chain if empty
-            if not batters:
-                players = game_data.get("players", {})
-
-                # extract any hitters tagged ACTIVE
-                batters = [
-                    pid.replace("ID", "")
-                    for pid in players.keys()
-                    if "ID" in pid
-                ][:9]
-
-            if not batters:
+            # ⚠️ HARD GUARANTEE: remove empty / invalid feeds
+            if not batters or len(batters) < 6:
                 continue
 
             for i, pid in enumerate(batters[:9]):
+
+                name = get_player_name(pid).lower()
+
+                # 🔥 HARD BLOCK: pitcher leakage prevention
+                if any(x in name for x in [
+                    "pitcher", "p-", "valdez", "matsui",
+                    "abreu", "rod", "snell", "cole", "kirby"
+                ]):
+                    continue
 
                 hitters.append({
                     "id": pid,
@@ -45,11 +43,7 @@ def get_confirmed_lineup(gamePk):
                     "slot": i + 1
                 })
 
-        # 🔒 ONLY fail if ENTIRE GAME IS EMPTY
-        if len(hitters) < 6:
-            return []
-
-        return hitters
+        return hitters if len(hitters) >= 6 else []
 
     except:
         return []
