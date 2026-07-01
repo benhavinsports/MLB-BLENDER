@@ -1,6 +1,8 @@
-from services.handedness import get_handedness_profile
+from services.pitch_profile import get_pitch_profile
 
-def apply_gates(hitters, pitcher_name="unknown", pitcher_hand="RHP"):
+def apply_gates(hitters, pitcher_name="unknown"):
+
+    profile = get_pitch_profile(pitcher_name)
 
     survivors = []
 
@@ -9,34 +11,33 @@ def apply_gates(hitters, pitcher_name="unknown", pitcher_hand="RHP"):
         if not h.get("name"):
             continue
 
-        hitter_hand = get_handedness_profile(h["name"])
+        base = h.get("matchup_score", 0.4)
 
-        base_score = h.get("matchup_score", 0.4)
+        # 🔥 PITCH SEQUENCE EFFECT
+        seq_boost = 0.0
 
-        # ⚖️ HANDEDNESS EDGE LOGIC
-        hand_boost = 0.0
+        if profile["sequence"] == "fastball_heavy":
+            if "power" in h.get("style", "balanced"):
+                seq_boost += 0.12
 
-        # LHH vs RHP advantage
-        if hitter_hand == "LHH" and pitcher_hand == "RHP":
-            hand_boost += 0.10
+        if profile["sequence"] == "breaking_ball_heavy":
+            seq_boost += 0.08  # timing hitters benefit slightly
 
-        # RHH vs LHP advantage
-        if hitter_hand == "RHH" and pitcher_hand == "LHP":
-            hand_boost += 0.10
+        # 🎯 ZONE WEAKNESS EFFECT
+        zone_boost = 0.0
 
-        # same-side penalty
-        if hitter_hand == "RHH" and pitcher_hand == "RHP":
-            hand_boost -= 0.05
+        if profile["zone_weakness"] == "high_fastball":
+            zone_boost += 0.10
 
-        if hitter_hand == "LHH" and pitcher_hand == "LHP":
-            hand_boost -= 0.05
+        if profile["zone_weakness"] == "low_outside":
+            zone_boost += 0.07
 
-        total_score = base_score + hand_boost
+        total = base + seq_boost + zone_boost
 
-        h["hand_score"] = total_score
+        h["final_score"] = total
 
-        # 🔒 STABLE THRESHOLD
-        if total_score < 0.32:
+        # 🔒 STABLE ELIMINATION RULE
+        if total < 0.34:
             continue
 
         survivors.append(h)
