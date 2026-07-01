@@ -2,15 +2,15 @@ import streamlit as st
 from services.mlb_api import get_todays_games
 from engine.core import run_slate
 
-st.title("⚾ BLENDER V4.1 REAL-DATA LOCKED")
+st.title("⚾ BLENDER V4.1 REAL DATA STABLE ENGINE")
 
-st.caption("MLB API only | No placeholders | Deterministic gates")
+st.caption("Stable MLB engine — no placeholders, no wipeouts")
 
 if st.button("RUN TODAY SLATE"):
     games = get_todays_games()
 
     if not games:
-        st.error("NO MLB DATA AVAILABLE")
+        st.error("NO MLB GAMES FOUND")
     else:
         results = run_slate(games)
 
