@@ -1,38 +1,50 @@
-from services.lineup import get_lineup
+from services.lineup import get_confirmed_lineup
 from services.starter import get_probable_starter
 from engine.gates import apply_gates
 from engine.scoring import score_player
+
 
 def run_slate(games):
 
     results = []
 
+    processed_games = set()
+
     for g in games:
 
-        hitters = get_lineup(g["gamePk"])
-        starters = get_probable_starter(g["gamePk"])
+        gamePk = g["gamePk"]
 
-        pitcher_name = starters["away"]  # simplified side handling
+        # 🔒 ISOLATION LOCK
+        if gamePk in processed_games:
+            continue
+
+        processed_games.add(gamePk)
+
+        # 🔥 STRICT LINEUP ONLY
+        hitters = get_confirmed_lineup(gamePk)
+        starters = get_probable_starter(gamePk)
 
         if not hitters:
             results.append({
                 "game": f"{g['away']} vs {g['home']}",
-                "survivor": "NO DATA",
-                "why": "EMPTY LINEUP"
+                "survivor": "NO VALID LINEUP",
+                "why": "LINEUP INTEGRITY FAIL"
             })
             continue
 
-        survivors = apply_gates(hitters, pitcher_name)
+        pitcher = starters.get("away", "unknown")
 
-        if not survivors:
-            survivors = hitters[:1]
+        candidates = apply_gates(hitters, pitcher)
 
-        best = max(survivors, key=lambda x: score_player(x))
+        if not candidates:
+            candidates = hitters[:1]
+
+        best = max(candidates, key=lambda x: score_player(x))
 
         results.append({
             "game": f"{g['away']} vs {g['home']}",
             "survivor": best["name"],
-            "why": f"PITCH SEQUENCE + ZONE WEAKNESS + MATCHUP MODEL ({pitcher_name})"
+            "why": "LINEUP INTEGRITY LOCK + ISOLATED CORE ENGINE"
         })
 
     return results
