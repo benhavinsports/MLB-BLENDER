@@ -1,4 +1,5 @@
 from services.lineup import get_lineup
+from services.starter import get_probable_starter
 from engine.gates import apply_gates
 from engine.scoring import score_player
 
@@ -9,19 +10,19 @@ def run_slate(games):
     for g in games:
 
         hitters = get_lineup(g["gamePk"])
+        starters = get_probable_starter(g["gamePk"])
+
+        pitcher_name = starters["away"]  # simplified side handling
 
         if not hitters:
             results.append({
                 "game": f"{g['away']} vs {g['home']}",
                 "survivor": "NO DATA",
-                "why": "EMPTY LINEUP FEED"
+                "why": "EMPTY LINEUP"
             })
             continue
 
-        pitcher_name = "unknown"
-        pitcher_hand = "RHP"  # safe default (can upgrade later from starters feed)
-
-        survivors = apply_gates(hitters, pitcher_name, pitcher_hand)
+        survivors = apply_gates(hitters, pitcher_name)
 
         if not survivors:
             survivors = hitters[:1]
@@ -31,7 +32,7 @@ def run_slate(games):
         results.append({
             "game": f"{g['away']} vs {g['home']}",
             "survivor": best["name"],
-            "why": "PITCH MIX + HANDEDNESS EDGE + STAT SIGNAL LAYER"
+            "why": f"PITCH SEQUENCE + ZONE WEAKNESS + MATCHUP MODEL ({pitcher_name})"
         })
 
     return results
