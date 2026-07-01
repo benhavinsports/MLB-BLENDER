@@ -1,11 +1,7 @@
-from services.player_map import get_player_name
-
-
 def build_core3(results):
 
     """
-    Takes full slate results and returns GLOBAL CORE 3
-    (cross-game aggregation layer)
+    Takes full slate results and returns GLOBAL CORE 3 (cross-game pool)
     """
 
     pool = []
@@ -14,7 +10,7 @@ def build_core3(results):
 
         survivor = r.get("survivor")
 
-        # skip empty or invalid outputs
+        # skip invalid outputs
         if survivor in [
             "NO LINEUP DATA YET",
             "NO SURVIVOR",
@@ -30,13 +26,10 @@ def build_core3(results):
         })
 
     # ----------------------------
-    # DETERMINISTIC CORE 3 RULE
+    # CORE 3 SELECTION (FIRST 3 VALID)
     # ----------------------------
-    # (NO randomness, NO scoring drift)
-
     core3 = pool[:3]
 
-    # format output cleanly
     formatted = []
 
     for i, p in enumerate(core3, 1):
