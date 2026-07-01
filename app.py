@@ -1,20 +1,54 @@
 import streamlit as st
-from services.mlb_api import get_todays_games
+
+from services.slate import get_mlb_slate
 from engine.core import run_slate
 
-st.title("⚾ BLENDER V4.1 REAL DATA STABLE ENGINE")
 
-st.caption("Stable MLB engine — no placeholders, no wipeouts")
+# -----------------------------
+# ⚾ APP CONFIG
+# -----------------------------
+st.set_page_config(
+    page_title="MLB BLENDER V4.1",
+    layout="wide"
+)
 
-if st.button("RUN TODAY SLATE"):
-    games = get_todays_games()
+st.title("⚾ BLENDER V4.1 REAL DATA ENGINE")
+st.write("Stable MLB pipeline — schedule → engine → elimination system")
 
-    if not games:
-        st.error("NO MLB GAMES FOUND")
-    else:
-        results = run_slate(games)
 
-        for r in results:
-            st.subheader(r["game"])
-            st.write("SURVIVOR:", r["survivor"])
-            st.write("WHY:", r["why"])
+# -----------------------------
+# 🧭 LOAD SLATE
+# -----------------------------
+st.header("Loading MLB Slate...")
+
+games = get_mlb_slate()
+
+if not games:
+    st.error("❌ NO MLB GAMES FOUND — SLATE PIPELINE FAILED")
+    st.stop()
+
+st.success(f"✅ Loaded {len(games)} games")
+
+
+# -----------------------------
+# ⚙️ RUN ENGINE
+# -----------------------------
+st.header("Running Blender Engine...")
+
+results = run_slate(games)
+
+
+# -----------------------------
+# 📊 OUTPUT
+# -----------------------------
+st.header("⚾ RESULTS")
+
+for r in results:
+
+    st.markdown("---")
+
+    st.subheader(r.get("game", "UNKNOWN GAME"))
+
+    st.write(f"**SURVIVOR:** {r.get('survivor')}")
+
+    st.write(f"**WHY:** {r.get('why')}")
