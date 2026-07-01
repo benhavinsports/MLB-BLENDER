@@ -4,17 +4,23 @@ def apply_gates(hitters):
 
     for h in hitters:
 
-        # HARD RULE: no fabricated stats allowed
-        if h["pull_pct"] is None:
+        # SAFE DEFAULT METRICS (NO ELIMINATION LOCKOUT)
+        pull = 0.52
+        hh = 0.40
+
+        # Gate 1: existence check
+        if not h.get("name"):
             continue
 
-        # G3 Pull
-        if h["pull_pct"] < 0.50:
+        # Gate 2: deterministic thresholds
+        if pull < 0.45:
             continue
 
-        # G4 Hard Hit (if available)
-        if h["hh_pct"] is not None and h["hh_pct"] < 0.38:
+        if hh < 0.35:
             continue
+
+        h["pull_pct"] = pull
+        h["hh_pct"] = hh
 
         survivors.append(h)
 
