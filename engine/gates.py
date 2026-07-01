@@ -12,29 +12,20 @@ def apply_gates(hitters):
         stats = get_statcast_profile(h["name"])
 
         ev = stats["ev"]
-        barrel = stats["barrel_pct"]
-        xwoba = stats["xwoba"]
+        barrel = stats["barrel"]
+        x = stats["x"]
 
-        # 🔥 STATCAST DERIVED METRICS
+        # 🔥 ACCURACY SIGNAL ENGINE
+        power_score = (ev - 85) / 10
+        barrel_score = barrel * 4
+        matchup_score = x - 0.300
 
-        pull_pct = min(0.75, (ev - 85) / 30 + 0.45)
-        hh_pct = min(0.65, barrel * 5 + 0.35)
+        total_score = power_score + barrel_score + matchup_score
 
-        pitch_edge = (xwoba - 0.300) * 2
+        h["score"] = total_score
 
-        h["pull_pct"] = pull_pct
-        h["hh_pct"] = hh_pct
-        h["pitch_edge"] = pitch_edge
-
-        # 🔒 GATES (NOW POWERED BY STATCAST)
-
-        if pull_pct < 0.45:
-            continue
-
-        if hh_pct < 0.35:
-            continue
-
-        if pitch_edge < -0.10:
+        # ⚖️ GATES (STABLE BUT NOW INFORMED)
+        if total_score < 0.25:
             continue
 
         survivors.append(h)
