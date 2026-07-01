@@ -1,35 +1,39 @@
 from services.role_filter import is_valid_hitter
 
 
-def apply_elimination_gates(players):
+def apply_elimination_gates(players, pitcher_profile):
 
     survivors = []
 
+    weakness = pitcher_profile.get("weakness", "none")
+
     for p in players:
 
-        # -----------------------------
+        # -------------------------
         # GATE 0 — ROLE FILTER
-        # -----------------------------
+        # -------------------------
         if not is_valid_hitter(p):
             continue
 
-        # -----------------------------
-        # GATE 1 — BASIC VALIDITY
-        # -----------------------------
-        if not p.get("name"):
-            continue
-
-        # -----------------------------
-        # GATE 2 — SLOT CHECK (LIGHT WEIGHT ONLY)
-        # -----------------------------
         slot = p.get("slot", 9)
 
-        if slot < 1 or slot > 9:
-            continue
+        # -------------------------
+        # GATE 1 — SIMPLE ELIMINATION RULES
+        # -------------------------
 
-        # -----------------------------
-        # PASS THROUGH (NO SCORING)
-        # -----------------------------
+        # pitcher weakness logic (binary pass/fail)
+
+        if weakness == "power_hitters":
+            if slot > 4:
+                continue  # eliminated
+
+        elif weakness == "timing_hitters":
+            if slot > 6:
+                continue  # eliminated
+
+        # -------------------------
+        # PASS THROUGH ONLY
+        # -------------------------
         survivors.append(p)
 
     return survivors
