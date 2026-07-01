@@ -2,64 +2,41 @@ from services.role_filter import is_valid_hitter
 
 
 def apply_gates(hitters, pitcher_name):
-    """
-    ROLE-SAFE MLB BLENDER GATES
-    - hitter-only enforcement
-    - stable scoring
-    - no over-elimination
-    """
 
     survivors = []
 
     for h in hitters:
 
-        # -----------------------------
-        # 🚨 GATE 0 — ROLE VALIDATION
-        # -----------------------------
+        # 🔥 ROLE SAFETY
         if not is_valid_hitter(h):
             continue
 
-        # -----------------------------
-        # ⚙️ BASE SCORE
-        # -----------------------------
         base = 0.50
 
         name = h.get("name", "").lower()
 
-        # -----------------------------
-        # ⚡ SIMPLE PITCHER CONTEXT BOOST
-        # -----------------------------
         pitcher = (pitcher_name or "").lower()
 
-        if any(x in pitcher for x in ["fastball", "burnes", "cole", "strider"]):
-            base += 0.08
-
-        if any(x in pitcher for x in ["snell", "kirby", "gallen"]):
+        # ⚡ simple matchup bump (safe version)
+        if "fastball" in pitcher:
             base += 0.05
 
-        # -----------------------------
-        # 🔥 SLOT VALUE (LINEUP POSITION)
-        # -----------------------------
+        if "slider" in pitcher:
+            base += 0.03
+
+        # ⚾ lineup slot value
         slot = h.get("slot", 9)
 
         if slot <= 2:
-            base += 0.05
+            base += 0.04
         elif slot <= 6:
-            base += 0.03
-        else:
-            base += 0.00
+            base += 0.02
 
-        # -----------------------------
-        # 🧠 STABILITY CHECK (SAFE PASS ONLY)
-        # -----------------------------
         h["score"] = base
         h["matchup_score"] = base * 0.2
 
-        # -----------------------------
-        # ❌ ELIMINATION RULE (SOFT)
-        # -----------------------------
-        # IMPORTANT: do NOT hard-kill too aggressively
-        if base < 0.45:
+        # ❌ soft elimination only (IMPORTANT FIX)
+        if base < 0.40:
             continue
 
         survivors.append(h)
