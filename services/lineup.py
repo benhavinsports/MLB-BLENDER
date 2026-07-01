@@ -4,13 +4,6 @@ from services.player_map import get_player_name
 
 def get_confirmed_lineup(gamePk):
 
-    """
-    STRICT MODE:
-    - only uses liveData linescore batting order
-    - enforces 9 hitters max per team
-    - removes incomplete/empty feeds
-    """
-
     try:
         url = f"https://statsapi.mlb.com/api/v1.1/game/{gamePk}/feed/live"
         data = requests.get(url, timeout=10).json()
@@ -23,17 +16,22 @@ def get_confirmed_lineup(gamePk):
 
         for side in ["away", "home"]:
 
-            team_data = teams.get(side, {})
-            batters = team_data.get("batters", [])
+            team = teams.get(side, {})
 
-            # 🔒 HARD RULE: must be 9 max
-            batters = batters[:9]
+            # 🔥 FIX: use battingOrder FIRST (more reliable than batters list)
+            batting_order = team.get("battingOrder")
 
-            if len(batters) < 7:
-                # 🚨 invalid lineup feed → reject game integrity
-                return []
+            # fallback chain (VERY IMPORTANT)
+            if not batting_order:
+                batting_order = team.get("batters", [])
 
-            for i, pid in enumerate(batters):
+            if not batting_order:
+                continue
+
+            # do NOT hard fail game anymore
+            # just skip weak entries instead
+
+            for i, pid in enumerate(batting_order[:9]):
 
                 hitters.append({
                     "id": pid,
@@ -41,6 +39,10 @@ def get_confirmed_lineup(gamePk):
                     "team_side": side,
                     "slot": i + 1
                 })
+
+        # 🔒 relaxed integrity rule (key fix)
+        if len(hitters) < 10:
+            return []  # only fail truly broken games
 
         return hitters
 
