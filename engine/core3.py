@@ -1,9 +1,8 @@
 def build_core3(results):
 
     """
-    CORE 3 — Stable Deterministic Tier Selector
-    Fixes order-based selection bug when all survivors share same tier
-    (NO scoring, NO ML, 18-gate aligned)
+    CORE 3 — Environment-Aware Stable Selector
+    (NO ML, NO scoring, 18-gate aligned, context-preserving)
     """
 
     pool = []
@@ -12,7 +11,6 @@ def build_core3(results):
 
         survivor = r.get("survivor")
 
-        # skip invalid outputs
         if survivor in [
             "NO LINEUP DATA YET",
             "NO SURVIVOR",
@@ -24,7 +22,7 @@ def build_core3(results):
         why = str(r.get("why", "")).upper()
 
         # ----------------------------
-        # TIER SYSTEM (your gate language only)
+        # GATE TIER (ONLY YOUR SYSTEM LANGUAGE)
         # ----------------------------
         if "PURE ELIMINATION ENGINE PASS" in why:
             tier = 3
@@ -40,35 +38,35 @@ def build_core3(results):
             "tier": tier
         })
 
-    # ----------------------------
-    # SAFETY CHECK
-    # ----------------------------
     if not pool:
         return []
 
     # ----------------------------
-    # FIND STRONGEST TIER
+    # STEP 1: GET STRONGEST TIER
     # ----------------------------
     max_tier = max(p["tier"] for p in pool)
 
     top_cluster = [p for p in pool if p["tier"] == max_tier]
 
     # ----------------------------
-    # FIX: STABLE ORDERING (IMPORTANT)
-    # prevents random 2/3 mismatch like Kevin issue
+    # STEP 2: ENVIRONMENT PRESERVATION SORT
+    # (DO NOT FLATTEN GAME CONTEXT)
     # ----------------------------
     top_cluster = sorted(
         top_cluster,
-        key=lambda x: x["game"]  # deterministic ordering
+        key=lambda x: (
+            x["game"],   # preserves different game environments
+            x["tier"]    # keeps gate strength inside environment
+        )
     )
 
     # ----------------------------
-    # CORE 3 SELECTION
+    # STEP 3: CORE 3 SELECTION
     # ----------------------------
     core3 = top_cluster[:3]
 
     # ----------------------------
-    # FORMAT OUTPUT
+    # OUTPUT FORMAT
     # ----------------------------
     return [
         {
