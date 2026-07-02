@@ -28,24 +28,42 @@ def run_slate(games):
             continue
 
         # -------------------------
-        # STARTER
+        # STARTER (SAFE FIX)
         # -------------------------
         starters = get_probable_starter(gamePk)
-        pitcher_name = starters.get("away") or starters.get("home") or "unknown"
+
+        pitcher_name = (
+            starters.get("away")
+            or starters.get("home")
+            or None
+        )
+
+        if not pitcher_name:
+            results.append({
+                "game": label,
+                "survivor": "NO PITCHER DATA",
+                "why": "STARTER NOT RESOLVED"
+            })
+            continue
 
         # -------------------------
-        # PITCHER PROFILE
+        # PITCHER PROFILE (SAFE FIX)
         # -------------------------
         pitcher_profile = get_pitcher_profile(pitcher_name)
 
+        if not pitcher_profile:
+            results.append({
+                "game": label,
+                "survivor": "NO PITCHER DATA",
+                "why": "PITCHER PROFILE MISSING"
+            })
+            continue
+
         # -------------------------
-        # ELIMINATION
+        # ELIMINATION GATES
         # -------------------------
         survivors = apply_elimination_gates(lineup, pitcher_profile)
 
-        # -------------------------
-        # OUTPUT FIX (NAME RESOLUTION)
-        # -------------------------
         if not survivors:
             results.append({
                 "game": label,
@@ -54,8 +72,17 @@ def run_slate(games):
             })
             continue
 
-        winner = survivors[0]
+        # -------------------------
+        # SAFE WINNER SELECTION (FIX)
+        # -------------------------
+        winner = max(
+            survivors,
+            key=lambda x: x.get("score", 0)
+        )
 
+        # -------------------------
+        # OUTPUT
+        # -------------------------
         results.append({
             "game": label,
             "survivor": get_player_name(winner["id"]),
