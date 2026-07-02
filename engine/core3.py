@@ -1,7 +1,7 @@
 def build_core3(results):
 
     """
-    CORE 3 — Gate-aligned survivor selection (NO scoring, NO ML)
+    CORE 3 — Tier Cluster Lock (NO scoring, NO ML, 18-gate aligned)
     """
 
     pool = []
@@ -10,7 +10,6 @@ def build_core3(results):
 
         survivor = r.get("survivor")
 
-        # skip invalid outputs
         if survivor in [
             "NO LINEUP DATA YET",
             "NO SURVIVOR",
@@ -22,54 +21,78 @@ def build_core3(results):
         why = str(r.get("why", "")).upper()
 
         # ----------------------------
-        # GATE SIGNAL ALIGNMENT
+        # TIER SYSTEM (ONLY gate language)
         # ----------------------------
 
-        signal = 0
-
-        # strongest system confirmation
         if "PURE ELIMINATION ENGINE PASS" in why:
-            signal += 3
-
-        # normal pass signal
+            tier = 3
         elif "PASS" in why:
-            signal += 2
-
-        # weak/unclear signal fallback
+            tier = 2
         else:
-            signal += 1
+            tier = 1
 
         pool.append({
             "name": survivor,
             "game": r.get("game"),
             "why": r.get("why"),
-            "signal": signal
+            "tier": tier
         })
 
     # ----------------------------
-    # CORE 3 SELECTION
-    # (pattern-aligned, NOT random slice)
+    # STEP 1: FIND TOP TIER
     # ----------------------------
 
-    core3 = sorted(
-        pool,
-        key=lambda x: x["signal"],
-        reverse=True
-    )[:3]
+    if not pool:
+        return []
+
+    max_tier = max(p["tier"] for p in pool)
+
+    top_cluster = [p for p in pool if p["tier"] == max_tier]
+
+    # ----------------------------
+    # STEP 2: GAME BALANCE (IMPORTANT FIX)
+    # ensures no single game dominates Core 3
+    # ----------------------------
+
+    balanced = []
+    seen_games = set()
+
+    for p in top_cluster:
+
+        if p["game"] not in seen_games:
+            balanced.append(p)
+            seen_games.add(p["game"])
+
+        if len(balanced) == 3:
+            break
+
+    # ----------------------------
+    # STEP 3: FILL IF NEEDED (SECOND TIER)
+    # ----------------------------
+
+    if len(balanced) < 3:
+
+        second_tier = [p for p in pool if p["tier"] == max_tier - 1]
+
+        for p in second_tier:
+
+            if p["game"] not in seen_games:
+                balanced.append(p)
+                seen_games.add(p["game"])
+
+            if len(balanced) == 3:
+                break
 
     # ----------------------------
     # FORMAT OUTPUT
     # ----------------------------
 
-    formatted = []
-
-    for i, p in enumerate(core3, 1):
-
-        formatted.append({
-            "rank": i,
+    return [
+        {
+            "rank": i + 1,
             "player": p["name"],
             "game": p["game"],
             "reason": p["why"]
-        })
-
-    return formatted
+        }
+        for i, p in enumerate(balanced)
+    ]
