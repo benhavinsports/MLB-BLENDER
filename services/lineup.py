@@ -1,30 +1,20 @@
-import requests
+from services.role_filter import get_role_score
 
 
-def get_confirmed_lineup(gamePk):
+def project_lineup(game, player_pool):
 
-    try:
-        url = f"https://statsapi.mlb.com/api/v1.1/game/{gamePk}/feed/live"
-        data = requests.get(url, timeout=10).json()
+    projected = []
 
-        box = data.get("liveData", {}).get("boxscore", {})
-        teams = box.get("teams", {})
+    for player in player_pool:
 
-        hitters = []
+        role_score = get_role_score(player, game)
 
-        for side in ["away", "home"]:
+        projected.append({
+            "player": player,
+            "role_score": role_score
+        })
 
-            batters = teams.get(side, {}).get("batters", [])
+    # sort by batting order logic (role strength)
+    projected.sort(key=lambda x: x["role_score"], reverse=True)
 
-            for i, player_id in enumerate(batters):
-
-                hitters.append({
-                    "id": player_id,
-                    "slot": i + 1,
-                    "side": side
-                })
-
-        return hitters
-
-    except:
-        return []
+    return projected
