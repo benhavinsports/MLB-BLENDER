@@ -1,8 +1,8 @@
-def fallback_hitters(game):
+def fallback_hitters(gamePk):
 
-    # simple stable structure so engine NEVER breaks
+    # stable structure so system NEVER breaks
     return [
-        {"id": f"{game['gamePk']}-1", "slot": 1, "side": "away"},
-        {"id": f"{game['gamePk']}-2", "slot": 2, "side": "away"},
-        {"id": f"{game['gamePk']}-3", "slot": 3, "side": "away"},
+        {"id": f"{gamePk}-A1", "slot": 1},
+        {"id": f"{gamePk}-A2", "slot": 2},
+        {"id": f"{gamePk}-A3", "slot": 3},
     ]
