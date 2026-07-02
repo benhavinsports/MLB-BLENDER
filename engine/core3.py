@@ -4,22 +4,20 @@ def build_core3(results):
 
     for r in results:
 
-        survivor = r.get("survivor")
-
-        if not survivor or survivor in ["EMPTY", "NONE"]:
+        if not r.get("survivor"):
             continue
 
         pool.append({
-            "name": survivor,
+            "player": r["survivor"],
             "game": r["game"],
             "why": r["why"]
         })
 
-    # always return up to 3
+    # FINAL INTELLIGENCE RANKING
     return [
         {
             "rank": i + 1,
-            "player": p["name"],
+            "player": p["player"],
             "game": p["game"],
             "reason": p["why"]
         }
