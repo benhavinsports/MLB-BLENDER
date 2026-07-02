@@ -64,7 +64,7 @@ def apply_elimination_gates(lineup, pitcher_profile):
         # -------------------------
         # ELIMINATION RULE (SLIGHT ADJUSTMENT)
         # -------------------------
-        passed = score >= 2.0   # was 3 (this was also too strict for bias system)
+        passed = score >= 1.25   # was 3 (this was also too strict for bias system)
 
         if passed:
             results.append({
