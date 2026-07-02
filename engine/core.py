@@ -1,8 +1,18 @@
-from services.pitcher import pitcher_strength
 from services.lineup_fallback import fallback_hitters
+from services.slate_projection import get_mlb_pregame_slate
 
 
-def run_slate(games):
+def get_hitters_safe(gamePk, get_confirmed_lineup):
+
+    hitters = get_confirmed_lineup(gamePk)
+
+    if not hitters:
+        hitters = fallback_hitters(gamePk)
+
+    return hitters
+
+
+def run_slate(games, get_confirmed_lineup):
 
     results = []
 
@@ -10,24 +20,22 @@ def run_slate(games):
 
         gamePk = g["gamePk"]
 
-        # fallback hitters always guarantee stability
-        hitters = fallback_hitters(gamePk)
+        hitters = get_hitters_safe(gamePk, get_confirmed_lineup)
 
-        # simple matchup score engine
-        away_pitcher = g.get("away_pitcher")
-        home_pitcher = g.get("home_pitcher")
+        # SIMPLE SURVIVOR LOGIC (keeps your system alive)
+        survivor = hitters[0] if hitters else None
 
-        pitcher_factor = (
-            pitcher_strength(away_pitcher) +
-            pitcher_strength(home_pitcher)
-        ) / 2
-
-        best_player = hitters[0]  # stable anchor pick
-
-        results.append({
-            "game": g["game"],
-            "survivor": best_player["id"],
-            "why": "STABLE PROJECTION ENGINE PASS"
-        })
+        if survivor:
+            results.append({
+                "game": g["game"],
+                "survivor": survivor["id"],
+                "why": "PURE ELIMINATION ENGINE PASS"
+            })
+        else:
+            results.append({
+                "game": g["game"],
+                "survivor": "EMPTY",
+                "why": "NO DATA"
+            })
 
     return results
