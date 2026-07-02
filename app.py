@@ -1,7 +1,7 @@
 import streamlit as st
 from engine.core import run_slate
-from services.slate_stable import get_mlb_slate_stable
 from engine.core3 import build_core3
+from services.slate_projection import get_mlb_pregame_slate
 
 
 st.set_page_config(page_title="MLB Blender", layout="wide")
@@ -11,13 +11,17 @@ st.title("⚾ BLENDER V4.1 REAL DATA ENGINE")
 st.write("Stable MLB pipeline — schedule → engine → elimination system")
 
 # -------------------------
-# LOAD SLATE
+# LOAD SLATE (FIXED)
 # -------------------------
 st.write("Loading MLB Slate...")
 
-games = get_mlb_slate_stable()
+games = get_mlb_pregame_slate()
 
 st.success(f"Loaded {len(games)} games")
+
+# DEBUG (optional but important)
+st.write("Game IDs:")
+st.write([g["gamePk"] for g in games])
 
 # -------------------------
 # RUN ENGINE
