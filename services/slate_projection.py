@@ -4,16 +4,19 @@ from datetime import datetime
 
 def get_mlb_pregame_slate(date=None):
 
-    # always force today if not provided
+    # FORCE TODAY (fixes frozen slate issue)
     if date is None:
         date = datetime.now().strftime("%Y-%m-%d")
 
     url = "https://statsapi.mlb.com/api/v1/schedule?sportId=1"
-
     params = {"date": date}
 
-    r = requests.get(url, params=params, timeout=10)
-    data = r.json()
+    try:
+        r = requests.get(url, params=params, timeout=10)
+        data = r.json()
+    except Exception as e:
+        print("SLATE ERROR:", e)
+        return []
 
     games = []
 
@@ -26,9 +29,9 @@ def get_mlb_pregame_slate(date=None):
                 "away": g.get("teams", {}).get("away", {}).get("team", {}).get("name"),
                 "home": g.get("teams", {}).get("home", {}).get("team", {}).get("name"),
 
-                # ⚾ PROJECTIONS (THIS IS WHAT YOU WERE MISSING)
-                "probable_away_pitcher": g.get("teams", {}).get("away", {}).get("probablePitcher", {}).get("fullName"),
-                "probable_home_pitcher": g.get("teams", {}).get("home", {}).get("probablePitcher", {}).get("fullName"),
+                # PROBABLE PITCHERS (important for your model)
+                "away_pitcher": g.get("teams", {}).get("away", {}).get("probablePitcher", {}).get("fullName"),
+                "home_pitcher": g.get("teams", {}).get("home", {}).get("probablePitcher", {}).get("fullName"),
 
                 "status": g.get("status", {}).get("detailedState")
             })
