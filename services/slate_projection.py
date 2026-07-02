@@ -19,10 +19,6 @@ def get_mlb_pregame_slate(date=None):
             games.append({
                 "gamePk": g["gamePk"],
                 "game": f"{g['teams']['away']['team']['name']} vs {g['teams']['home']['team']['name']}",
-
-                "away": g['teams']['away']['team']['name'],
-                "home": g['teams']['home']['team']['name'],
-
                 "away_pitcher": g.get("teams", {}).get("away", {}).get("probablePitcher", {}).get("fullName"),
                 "home_pitcher": g.get("teams", {}).get("home", {}).get("probablePitcher", {}).get("fullName"),
             })
