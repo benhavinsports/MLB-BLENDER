@@ -1,8 +1,8 @@
 def build_core3(results):
 
     """
-    CORE 3 — Environment-Aware Stable Selector
-    (NO ML, NO scoring, 18-gate aligned, context-preserving)
+    CORE 3 — Slate Stability Lock Mode
+    (NO scoring, NO ML, fully deterministic 18-gate aligned system)
     """
 
     pool = []
@@ -22,7 +22,7 @@ def build_core3(results):
         why = str(r.get("why", "")).upper()
 
         # ----------------------------
-        # GATE TIER (ONLY YOUR SYSTEM LANGUAGE)
+        # TIER CLASSIFICATION (gate strength only)
         # ----------------------------
         if "PURE ELIMINATION ENGINE PASS" in why:
             tier = 3
@@ -42,31 +42,45 @@ def build_core3(results):
         return []
 
     # ----------------------------
-    # STEP 1: GET STRONGEST TIER
+    # STEP 1 — FIND STRONGEST TIER
     # ----------------------------
     max_tier = max(p["tier"] for p in pool)
 
     top_cluster = [p for p in pool if p["tier"] == max_tier]
 
     # ----------------------------
-    # STEP 2: ENVIRONMENT PRESERVATION SORT
-    # (DO NOT FLATTEN GAME CONTEXT)
+    # STEP 2 — GROUP BY GAME (ENVIRONMENT LOCK)
     # ----------------------------
-    top_cluster = sorted(
-        top_cluster,
-        key=lambda x: (
-            x["game"],   # preserves different game environments
-            x["tier"]    # keeps gate strength inside environment
-        )
+    games = {}
+
+    for p in top_cluster:
+        games.setdefault(p["game"], []).append(p)
+
+    # ----------------------------
+    # STEP 3 — ENVIRONMENT PRIORITY ORDER
+    # (most populated strong environments first)
+    # ----------------------------
+    sorted_games = sorted(
+        games.items(),
+        key=lambda x: len(x[1]),
+        reverse=True
     )
 
     # ----------------------------
-    # STEP 3: CORE 3 SELECTION
+    # STEP 4 — SLATE LOCK (NO ORDER BIAS)
     # ----------------------------
-    core3 = top_cluster[:3]
+    core3 = []
+
+    for game, players in sorted_games:
+        for p in players:
+            core3.append(p)
+            if len(core3) == 3:
+                break
+        if len(core3) == 3:
+            break
 
     # ----------------------------
-    # OUTPUT FORMAT
+    # STEP 5 — FINAL OUTPUT FORMAT
     # ----------------------------
     return [
         {
