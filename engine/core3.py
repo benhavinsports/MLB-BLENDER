@@ -1,7 +1,7 @@
 def build_core3(results):
 
     """
-    Takes full slate results and returns GLOBAL CORE 3 (cross-game pool)
+    CORE 3 — Gate-aligned survivor selection (NO scoring, NO ML)
     """
 
     pool = []
@@ -19,16 +19,47 @@ def build_core3(results):
         ]:
             continue
 
+        why = str(r.get("why", "")).upper()
+
+        # ----------------------------
+        # GATE SIGNAL ALIGNMENT
+        # ----------------------------
+
+        signal = 0
+
+        # strongest system confirmation
+        if "PURE ELIMINATION ENGINE PASS" in why:
+            signal += 3
+
+        # normal pass signal
+        elif "PASS" in why:
+            signal += 2
+
+        # weak/unclear signal fallback
+        else:
+            signal += 1
+
         pool.append({
             "name": survivor,
             "game": r.get("game"),
-            "why": r.get("why")
+            "why": r.get("why"),
+            "signal": signal
         })
 
     # ----------------------------
-    # CORE 3 SELECTION (FIRST 3 VALID)
+    # CORE 3 SELECTION
+    # (pattern-aligned, NOT random slice)
     # ----------------------------
-    core3 = pool[:3]
+
+    core3 = sorted(
+        pool,
+        key=lambda x: x["signal"],
+        reverse=True
+    )[:3]
+
+    # ----------------------------
+    # FORMAT OUTPUT
+    # ----------------------------
 
     formatted = []
 
