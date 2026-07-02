@@ -1,7 +1,9 @@
 def build_core3(results):
 
     """
-    CORE 3 — Tier Cluster Lock (NO scoring, NO ML, 18-gate aligned)
+    CORE 3 — Stable Deterministic Tier Selector
+    Fixes order-based selection bug when all survivors share same tier
+    (NO scoring, NO ML, 18-gate aligned)
     """
 
     pool = []
@@ -10,6 +12,7 @@ def build_core3(results):
 
         survivor = r.get("survivor")
 
+        # skip invalid outputs
         if survivor in [
             "NO LINEUP DATA YET",
             "NO SURVIVOR",
@@ -21,9 +24,8 @@ def build_core3(results):
         why = str(r.get("why", "")).upper()
 
         # ----------------------------
-        # TIER SYSTEM (ONLY gate language)
+        # TIER SYSTEM (your gate language only)
         # ----------------------------
-
         if "PURE ELIMINATION ENGINE PASS" in why:
             tier = 3
         elif "PASS" in why:
@@ -39,54 +41,35 @@ def build_core3(results):
         })
 
     # ----------------------------
-    # STEP 1: FIND TOP TIER
+    # SAFETY CHECK
     # ----------------------------
-
     if not pool:
         return []
 
+    # ----------------------------
+    # FIND STRONGEST TIER
+    # ----------------------------
     max_tier = max(p["tier"] for p in pool)
 
     top_cluster = [p for p in pool if p["tier"] == max_tier]
 
     # ----------------------------
-    # STEP 2: GAME BALANCE (IMPORTANT FIX)
-    # ensures no single game dominates Core 3
+    # FIX: STABLE ORDERING (IMPORTANT)
+    # prevents random 2/3 mismatch like Kevin issue
     # ----------------------------
-
-    balanced = []
-    seen_games = set()
-
-    for p in top_cluster:
-
-        if p["game"] not in seen_games:
-            balanced.append(p)
-            seen_games.add(p["game"])
-
-        if len(balanced) == 3:
-            break
+    top_cluster = sorted(
+        top_cluster,
+        key=lambda x: x["game"]  # deterministic ordering
+    )
 
     # ----------------------------
-    # STEP 3: FILL IF NEEDED (SECOND TIER)
+    # CORE 3 SELECTION
     # ----------------------------
-
-    if len(balanced) < 3:
-
-        second_tier = [p for p in pool if p["tier"] == max_tier - 1]
-
-        for p in second_tier:
-
-            if p["game"] not in seen_games:
-                balanced.append(p)
-                seen_games.add(p["game"])
-
-            if len(balanced) == 3:
-                break
+    core3 = top_cluster[:3]
 
     # ----------------------------
     # FORMAT OUTPUT
     # ----------------------------
-
     return [
         {
             "rank": i + 1,
@@ -94,5 +77,5 @@ def build_core3(results):
             "game": p["game"],
             "reason": p["why"]
         }
-        for i, p in enumerate(balanced)
+        for i, p in enumerate(core3)
     ]
