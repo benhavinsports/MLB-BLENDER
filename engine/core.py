@@ -1,41 +1,53 @@
-from services.lineup_fallback import fallback_hitters
-from services.slate_projection import get_mlb_pregame_slate
+from services.lineup import project_lineup
+from services.pitcher import pitcher_strength
 
 
-def get_hitters_safe(gamePk, get_confirmed_lineup):
-
-    hitters = get_confirmed_lineup(gamePk)
-
-    if not hitters:
-        hitters = fallback_hitters(gamePk)
-
-    return hitters
-
-
-def run_slate(games, get_confirmed_lineup):
+def run_slate(games):
 
     results = []
 
+    # fake player pool placeholder (replace with your player_map later)
+    player_pool = [
+        "player_a",
+        "player_b",
+        "player_c",
+        "player_d",
+        "player_e"
+    ]
+
     for g in games:
 
-        gamePk = g["gamePk"]
+        away_pitcher = g.get("away_pitcher")
+        home_pitcher = g.get("home_pitcher")
 
-        hitters = get_hitters_safe(gamePk, get_confirmed_lineup)
+        pitcher_factor = (
+            pitcher_strength(away_pitcher) +
+            pitcher_strength(home_pitcher)
+        ) / 2
 
-        # SIMPLE SURVIVOR LOGIC (keeps your system alive)
-        survivor = hitters[0] if hitters else None
+        lineup = project_lineup(g, player_pool)
 
-        if survivor:
-            results.append({
-                "game": g["game"],
-                "survivor": survivor["id"],
-                "why": "PURE ELIMINATION ENGINE PASS"
+        # APPLY MATCHUP FILTERING (THIS IS YOUR REAL CORE LOGIC)
+        scored = []
+
+        for item in lineup:
+
+            score = item["role_score"] * (1 + pitcher_factor)
+
+            scored.append({
+                "player": item["player"],
+                "score": score
             })
-        else:
-            results.append({
-                "game": g["game"],
-                "survivor": "EMPTY",
-                "why": "NO DATA"
-            })
+
+        scored.sort(key=lambda x: x["score"], reverse=True)
+
+        # CORE SURVIVOR (REAL PICK)
+        survivor = scored[0]["player"] if scored else None
+
+        results.append({
+            "game": g["game"],
+            "survivor": survivor,
+            "why": "ROLE + PITCHER MATCHUP ENGINE PASS"
+        })
 
     return results
