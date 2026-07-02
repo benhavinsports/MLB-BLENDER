@@ -7,22 +7,46 @@ from services.slate_projection import get_mlb_pregame_slate
 
 st.set_page_config(page_title="MLB Blender", layout="wide")
 
-st.title("⚾ BLENDER REAL INTELLIGENCE ENGINE")
+st.title("⚾ BLENDER V4.1 REAL DATA ENGINE")
+
+st.write("Stable MLB pipeline — schedule → engine → elimination system")
+
+# -------------------------
+# LOAD SLATE
+# -------------------------
+st.write("Loading MLB Slate...")
 
 games = get_mlb_pregame_slate()
 
-st.write("Loaded games:", len(games))
+st.success(f"Loaded {len(games)} games")
 
+st.write("Games Loaded:")
+st.write([g["game"] for g in games])
+
+# -------------------------
+# RUN ENGINE
+# -------------------------
+st.write("Running Blender Engine...")
+
+# ✔ FIX: ONLY 1 ARG (THIS WAS YOUR CRASH)
 results = run_slate(games)
 
-st.subheader("RESULTS")
+st.subheader("⚾ RESULTS")
 
 for r in results:
-    st.write(r)
+    st.write("GAME:", r["game"])
+    st.write("SURVIVOR:", r["survivor"])
+    st.write("WHY:", r["why"])
+    st.write("---")
+
+# -------------------------
+# CORE 3
+# -------------------------
+st.subheader("⚾ CORE 3 FINAL POOL")
 
 core3 = build_core3(results)
 
-st.subheader("CORE 3")
-
 for p in core3:
-    st.write(p)
+    st.write(f"{p['rank']}. {p['player']} ({p['game']})")
+    st.write(p["reason"])
+    st.write("---")
