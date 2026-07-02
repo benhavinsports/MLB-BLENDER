@@ -11,42 +11,30 @@ st.title("⚾ BLENDER V4.1 REAL DATA ENGINE")
 
 st.write("Stable MLB pipeline — schedule → engine → elimination system")
 
-# -------------------------
 # LOAD SLATE
-# -------------------------
 st.write("Loading MLB Slate...")
 
 games = get_mlb_pregame_slate()
 
 st.success(f"Loaded {len(games)} games")
 
-st.write("Games Loaded:")
 st.write([g["game"] for g in games])
 
-# -------------------------
-# RUN ENGINE
-# -------------------------
-st.write("Running Blender Engine...")
-
-# ✔ FIX: ONLY 1 ARG (THIS WAS YOUR CRASH)
+# RUN ENGINE (UNCHANGED)
 results = run_slate(games)
 
-st.subheader("⚾ RESULTS")
+st.subheader("RESULTS")
 
 for r in results:
-    st.write("GAME:", r["game"])
+    st.write(r["game"])
     st.write("SURVIVOR:", r["survivor"])
     st.write("WHY:", r["why"])
     st.write("---")
 
-# -------------------------
-# CORE 3
-# -------------------------
-st.subheader("⚾ CORE 3 FINAL POOL")
+# CORE 3 (UNCHANGED)
+st.subheader("CORE 3")
 
 core3 = build_core3(results)
 
 for p in core3:
-    st.write(f"{p['rank']}. {p['player']} ({p['game']})")
-    st.write(p["reason"])
-    st.write("---")
+    st.write(p)
