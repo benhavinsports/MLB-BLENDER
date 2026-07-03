@@ -31,10 +31,18 @@ def run_slate(games):
 
         survivors = apply_elimination_gates(lineup, pitcher_profile)
 
+        # -------------------------
+        # HARD RULE: IF NO SURVIVOR SKIP GAME
+        # -------------------------
         if not survivors:
             continue
 
-        winner = survivors[0]   # 1 per game
+        # -------------------------
+        # PICK STRONGEST BY SLOT PRIORITY (NOT RANDOM)
+        # -------------------------
+        survivors.sort(key=lambda x: x["slot"])
+
+        winner = survivors[0]
 
         results.append({
             "game": label,
