@@ -15,54 +15,26 @@ def run_slate(games):
         gamePk = g.get("gamePk")
         label = f"{g.get('away')} vs {g.get('home')}"
 
-        # -------------------------
-        # LINEUP
-        # -------------------------
         raw_lineup = get_confirmed_lineup(gamePk)
         lineup = normalize_lineup(raw_lineup)
 
         if not lineup:
-            results.append({
-                "game": label,
-                "survivor": "NO LINEUP DATA",
-                "why": "EMPTY LINEUP"
-            })
             continue
 
-        # -------------------------
-        # PITCHER
-        # -------------------------
         starters = get_probable_starter(gamePk)
-
         pitcher_name = starters.get("away") or starters.get("home")
 
         if not pitcher_name:
-            results.append({
-                "game": label,
-                "survivor": "NO PITCHER",
-                "why": "NO STARTER FOUND"
-            })
             continue
 
         pitcher_profile = get_pitcher_profile(pitcher_name)
 
-        # -------------------------
-        # TRUE GATE ENGINE
-        # -------------------------
         survivors = apply_elimination_gates(lineup, pitcher_profile)
 
         if not survivors:
-            results.append({
-                "game": label,
-                "survivor": "NO SURVIVOR",
-                "why": "ALL ELIMINATED"
-            })
             continue
 
-        # -------------------------
-        # GAME WINNER = FIRST SURVIVOR (NO SCORING)
-        # -------------------------
-        winner = survivors[0]
+        winner = survivors[0]   # 1 per game
 
         results.append({
             "game": label,
