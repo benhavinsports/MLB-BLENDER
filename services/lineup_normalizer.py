@@ -1,8 +1,11 @@
+from services.player_map import get_player_name
+
+
 def normalize_lineup(raw_lineup, roster_map=None):
 
     """
-    LINEUP NORMALIZATION LAYER
-    Converts raw MLB feed into gate-ready structured players
+    LINEUP NORMALIZATION LAYER (FIXED)
+    Now resolves player names immediately instead of passing IDs forward
     """
 
     normalized = []
@@ -11,23 +14,22 @@ def normalize_lineup(raw_lineup, roster_map=None):
 
         player_id = p.get("id")
 
-        # -------------------------
-        # SLOT (batting order position)
-        # -------------------------
-        slot = p.get("slot", None)
-
-        if slot is None:
-            # fallback: unknown slot goes bottom order
-            slot = 9
+        # 🔥 FIX: ALWAYS resolve real name here
+        player_name = (
+            p.get("name")
+            or (get_player_name(player_id) if player_id else None)
+            or player_id
+        )
 
         # -------------------------
-        # HANDEDNESS (SAFE FALLBACK)
+        # SLOT
         # -------------------------
-        handedness = p.get("handedness")
+        slot = p.get("slot") or 9
 
-        if not handedness:
-            # fallback if missing
-            handedness = "R"
+        # -------------------------
+        # HANDEDNESS
+        # -------------------------
+        handedness = p.get("handedness") or "R"
 
         # -------------------------
         # SIDE
@@ -35,7 +37,7 @@ def normalize_lineup(raw_lineup, roster_map=None):
         side = p.get("side", "home")
 
         # -------------------------
-        # ROLE MAPPING (IMPORTANT FOR CORE 3)
+        # ROLE MAPPING
         # -------------------------
         if slot <= 2:
             role = "table_setter"
@@ -49,7 +51,7 @@ def normalize_lineup(raw_lineup, roster_map=None):
         # -------------------------
         normalized.append({
             "id": player_id,
-            "name": p.get("name", player_id),
+            "name": player_name,   # 🔥 FIXED HERE
             "slot": slot,
             "handedness": handedness,
             "side": side,
