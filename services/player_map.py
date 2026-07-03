@@ -2,34 +2,12 @@ import requests
 
 PLAYER_CACHE = {}
 
-
-def clean_player_id(player_id):
-    """
-    Converts:
-    player_824659_1 → 824659
-    """
-    if not player_id:
-        return None
-
-    if isinstance(player_id, int):
-        return str(player_id)
-
-    if isinstance(player_id, str):
-        player_id = player_id.replace("player_", "")
-        player_id = player_id.split("_")[0]
-
-        digits = "".join([c for c in player_id if c.isdigit()])
-        return digits if digits else None
-
-    return None
-
-
 def get_player_name(player_id):
 
-    player_id = clean_player_id(player_id)
-
     if not player_id:
-        return None
+        return "Unknown"
+
+    player_id = str(player_id)
 
     if player_id in PLAYER_CACHE:
         return PLAYER_CACHE[player_id]
@@ -41,14 +19,13 @@ def get_player_name(player_id):
         people = data.get("people", [])
 
         if not people:
-            return None
+            name = f"Unknown_{player_id}"
+        else:
+            name = people[0].get("fullName") or f"Unknown_{player_id}"
 
-        name = people[0].get("fullName")
-
-        if name:
-            PLAYER_CACHE[player_id] = name
+        PLAYER_CACHE[player_id] = name
 
         return name
 
     except:
-        return None
+        return f"Unknown_{player_id}"
