@@ -15,18 +15,18 @@ def run_slate(games):
         gamePk = g.get("gamePk")
         label = f"{g.get('away')} vs {g.get('home')}"
 
-        # =========================
-        # LINEUP LOAD
-        # =========================
+        # -------------------------
+        # LINEUP
+        # -------------------------
         raw_lineup = get_confirmed_lineup(gamePk)
         lineup = normalize_lineup(raw_lineup)
 
         if not lineup:
             continue
 
-        # =========================
-        # STARTER LOAD
-        # =========================
+        # -------------------------
+        # STARTER
+        # -------------------------
         starters = get_probable_starter(gamePk)
         pitcher_name = starters.get("away") or starters.get("home")
 
@@ -35,37 +35,36 @@ def run_slate(games):
 
         pitcher_profile = get_pitcher_profile(pitcher_name)
 
-        # =========================
-        # ENGINE RUN
-        # =========================
+        # -------------------------
+        # ENGINE
+        # -------------------------
         enriched = apply_elimination_gates(lineup, pitcher_profile)
 
         if not enriched:
             continue
 
-        # =========================
-        # SORT BY FINAL SCORE
-        # =========================
-        enriched.sort(
-            key=lambda x: x.get("final_score", 0),
-            reverse=True
-        )
+        # -------------------------
+        # SORT
+        # -------------------------
+        enriched.sort(key=lambda x: x.get("final_score", 0), reverse=True)
 
         winner = enriched[0]
 
+        raw_id = winner.get("id")
+
         # =========================
-        # SAFE FIELD NORMALIZATION (CRITICAL FIX)
+        # 🔥 FIX: FORCE NAME RESOLUTION (THIS WAS YOUR ISSUE)
         # =========================
-        survivor_name = (
-            winner.get("name")
-            or get_player_name(winner.get("id"))
-            or winner.get("id")
-        )
+        survivor_name = get_player_name(raw_id)
+
+        # fallback safety
+        if not survivor_name or "Unknown" in survivor_name:
+            survivor_name = winner.get("name") or f"Player_{raw_id}"
 
         results.append({
             "game": label,
-            "survivor": survivor_name,
-            "id": winner.get("id"),
+            "survivor": survivor_name,   # 🔥 NOW ALWAYS NAME
+            "id": raw_id,
             "gates": winner.get("gates", []),
             "final_score": winner.get("final_score", 0)
         })
