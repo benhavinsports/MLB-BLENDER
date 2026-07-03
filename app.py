@@ -2,8 +2,7 @@ import streamlit as st
 
 from engine.core import run_slate
 from engine.core3 import build_core3
-from services.slate_projection import get_mlb_pregame_slate
-from services.lineup_fallback import fallback_hitters
+from services.slate import get_mlb_slate
 
 
 st.set_page_config(page_title="MLB Blender", layout="wide")
@@ -17,19 +16,19 @@ st.write("Stable MLB pipeline — schedule → engine → elimination system")
 # -------------------------
 st.write("Loading MLB Slate...")
 
-games = get_mlb_pregame_slate()
+games = get_mlb_slate()
 
 st.success(f"Loaded {len(games)} games")
 
 st.write("Games:")
-st.write([g["game"] for g in games])
+st.write([f"{g['away']} vs {g['home']}" for g in games])
 
 # -------------------------
 # RUN ENGINE
 # -------------------------
 st.write("Running Blender Engine...")
 
-results = run_slate(games, lambda gamePk: [])  # placeholder lineup function
+results = run_slate(games)
 
 st.subheader("⚾ RESULTS")
 
