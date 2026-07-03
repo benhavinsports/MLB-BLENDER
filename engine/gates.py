@@ -1,9 +1,7 @@
 def apply_elimination_gates(lineup, pitcher_profile):
     """
-    BLENDER GATES V2 — STRUCTURED TRACEABLE ENGINE
-
-    OUTPUT:
-        FULL gate-by-gate structured audit per hitter
+    BLENDER GATES V2 — FULL 18 GATE ENGINE (RESTORED)
+    OUTPUT: survivors per game (NOT collapsed inside engine)
     """
 
     survivors = []
@@ -11,9 +9,7 @@ def apply_elimination_gates(lineup, pitcher_profile):
     for p in lineup:
 
         slot = p.get("slot", 9)
-
         gate_log = []
-        eliminated = False
 
         # =========================
         # GATE 0 — SLOT SCORE
@@ -23,9 +19,7 @@ def apply_elimination_gates(lineup, pitcher_profile):
         gate_log.append({
             "gate": 0,
             "formula": "SLOT_SCORE = max(0, 6 - slot)",
-            "input": slot,
             "score": SLOT_SCORE,
-            "threshold": 1,
             "pass": SLOT_SCORE >= 1
         })
 
@@ -36,7 +30,6 @@ def apply_elimination_gates(lineup, pitcher_profile):
         # GATE 1 — PLATOON MATCH
         # =========================
         platoon = 0
-
         if pitcher_profile:
             if pitcher_profile.get("weak_vs_right") and p.get("handedness") == "R":
                 platoon = 1
@@ -45,10 +38,8 @@ def apply_elimination_gates(lineup, pitcher_profile):
 
         gate_log.append({
             "gate": 1,
-            "formula": "PLATOON = 1 if matchup advantage else 0",
-            "input": p.get("handedness"),
+            "formula": "PLATOON ADVANTAGE",
             "score": platoon,
-            "threshold": 1,
             "pass": platoon == 1
         })
 
@@ -59,15 +50,12 @@ def apply_elimination_gates(lineup, pitcher_profile):
         # GATE 2 — PARK FACTOR
         # =========================
         park = pitcher_profile.get("park_factor", 1)
-
         PARK_SCORE = (park - 1) * 10
 
         gate_log.append({
             "gate": 2,
             "formula": "PARK_SCORE = (park_factor - 1) * 10",
-            "input": park,
             "score": PARK_SCORE,
-            "threshold": -1,
             "pass": PARK_SCORE >= -1
         })
 
@@ -82,9 +70,7 @@ def apply_elimination_gates(lineup, pitcher_profile):
         gate_log.append({
             "gate": 3,
             "formula": "LINEUP_SCORE = max(0, 7 - slot)",
-            "input": slot,
             "score": LINEUP_SCORE,
-            "threshold": 1,
             "pass": LINEUP_SCORE >= 1
         })
 
@@ -94,55 +80,46 @@ def apply_elimination_gates(lineup, pitcher_profile):
         # =========================
         # GATE 4 — HARD HIT
         # =========================
-        hh = p.get("hardhit_pct", 0)
-        HARDHIT_SCORE = hh / 100
+        hh = p.get("hardhit_pct", 0) / 100
 
         gate_log.append({
             "gate": 4,
             "formula": "HARDHIT_SCORE = hardhit_pct / 100",
-            "input": hh,
-            "score": HARDHIT_SCORE,
-            "threshold": 0.38,
-            "pass": HARDHIT_SCORE >= 0.38
+            "score": hh,
+            "pass": hh >= 0.38
         })
 
-        if HARDHIT_SCORE < 0.38:
+        if hh < 0.38:
             continue
 
         # =========================
         # GATE 5 — EXIT VELOCITY
         # =========================
-        ev = p.get("exit_velocity", 85)
-        EV_SCORE = (ev - 85) / 10
+        ev = (p.get("exit_velocity", 85) - 85) / 10
 
         gate_log.append({
             "gate": 5,
-            "formula": "EV_SCORE = (exit_velocity - 85) / 10",
-            "input": ev,
-            "score": EV_SCORE,
-            "threshold": 0.2,
-            "pass": EV_SCORE >= 0.2
+            "formula": "EV_SCORE = (EV - 85) / 10",
+            "score": ev,
+            "pass": ev >= 0.2
         })
 
-        if EV_SCORE < 0.2:
+        if ev < 0.2:
             continue
 
         # =========================
         # GATE 6 — BARREL RATE
         # =========================
-        barrel = p.get("barrel_pct", 0)
-        BARREL_SCORE = barrel / 100
+        barrel = p.get("barrel_pct", 0) / 100
 
         gate_log.append({
             "gate": 6,
             "formula": "BARREL_SCORE = barrel_pct / 100",
-            "input": barrel,
-            "score": BARREL_SCORE,
-            "threshold": 0.10,
-            "pass": BARREL_SCORE >= 0.10
+            "score": barrel,
+            "pass": barrel >= 0.10
         })
 
-        if BARREL_SCORE < 0.10:
+        if barrel < 0.10:
             continue
 
         # =========================
@@ -150,57 +127,48 @@ def apply_elimination_gates(lineup, pitcher_profile):
         # =========================
         hr10 = p.get("hr_last10", 0)
         barrels10 = p.get("barrels_last10", 0)
-
-        RHYTHM_SCORE = (hr10 * 3) + (barrels10 * 2)
+        rhythm = (hr10 * 3) + (barrels10 * 2)
 
         gate_log.append({
             "gate": 7,
-            "formula": "RHYTHM = (HR_last10*3) + (Barrels_last10*2)",
-            "input": {"hr10": hr10, "barrels10": barrels10},
-            "score": RHYTHM_SCORE,
-            "threshold": 5,
-            "pass": RHYTHM_SCORE >= 5
+            "formula": "RHYTHM = HR*3 + BARRELS*2",
+            "score": rhythm,
+            "pass": rhythm >= 5
         })
 
-        if RHYTHM_SCORE < 5:
+        if rhythm < 5:
             continue
 
         # =========================
         # GATE 8 — CONVERSION
         # =========================
         hr = p.get("hr_season", 0)
-        pa = p.get("pa", 1)
-
-        CONVERSION = hr / pa
+        pa = max(1, p.get("pa", 1))
+        conversion = hr / pa
 
         gate_log.append({
             "gate": 8,
             "formula": "CONVERSION = HR / PA",
-            "input": {"hr": hr, "pa": pa},
-            "score": CONVERSION,
-            "threshold": 0.045,
-            "pass": CONVERSION >= 0.045
+            "score": conversion,
+            "pass": conversion >= 0.045
         })
 
-        if CONVERSION < 0.045:
+        if conversion < 0.045:
             continue
 
         # =========================
         # GATE 9 — ENVIRONMENT
         # =========================
         env = pitcher_profile.get("park_factor", 1)
-        ENV_SCORE = env * 10
 
         gate_log.append({
             "gate": 9,
-            "formula": "ENV_SCORE = park_factor * 10",
-            "input": env,
-            "score": ENV_SCORE,
-            "threshold": 9,
-            "pass": ENV_SCORE >= 9
+            "formula": "ENV = park_factor",
+            "score": env,
+            "pass": env >= 0.95
         })
 
-        if ENV_SCORE < 9:
+        if env < 0.95:
             continue
 
         # =========================
@@ -210,10 +178,8 @@ def apply_elimination_gates(lineup, pitcher_profile):
 
         gate_log.append({
             "gate": 10,
-            "formula": "OPP = (7 - slot) + (PA/4)",
-            "input": {"slot": slot, "pa": p.get("pa", 4)},
+            "formula": "OPP = (7-slot) + PA/4",
             "score": opp,
-            "threshold": 4,
             "pass": opp >= 4
         })
 
@@ -227,10 +193,8 @@ def apply_elimination_gates(lineup, pitcher_profile):
 
         gate_log.append({
             "gate": "10.5",
-            "formula": "DECOY = model risk score (0-1)",
-            "input": decoy,
+            "formula": "DECOY SCORE",
             "score": decoy,
-            "threshold": 0.8,
             "pass": decoy <= 0.8
         })
 
@@ -244,10 +208,8 @@ def apply_elimination_gates(lineup, pitcher_profile):
 
         gate_log.append({
             "gate": 11,
-            "formula": "BULLPEN = bullpen_hr9",
-            "input": bullpen,
+            "formula": "BULLPEN HR/9",
             "score": bullpen,
-            "threshold": 1.2,
             "pass": bullpen >= 1.2
         })
 
@@ -257,14 +219,12 @@ def apply_elimination_gates(lineup, pitcher_profile):
         # =========================
         # GATE 12 — OWNERSHIP
         # =========================
-        ownership = SLOT_SCORE + EV_SCORE + BARREL_SCORE
+        ownership = SLOT_SCORE + ev + barrel
 
         gate_log.append({
             "gate": 12,
             "formula": "OWNERSHIP = SLOT + EV + BARREL",
-            "input": None,
             "score": ownership,
-            "threshold": 1.5,
             "pass": ownership >= 1.5
         })
 
@@ -275,18 +235,16 @@ def apply_elimination_gates(lineup, pitcher_profile):
         # GATE 13 — NUMERICAL
         # =========================
         jersey = p.get("jersey", 0)
-        NUM_SCORE = abs((jersey % 9) - slot)
+        num = abs((jersey % 9) - slot)
 
         gate_log.append({
             "gate": 13,
-            "formula": "NUM_SCORE = abs((jersey % 9) - slot)",
-            "input": {"jersey": jersey},
-            "score": NUM_SCORE,
-            "threshold": 6,
-            "pass": NUM_SCORE <= 6
+            "formula": "NUM = abs((jersey % 9) - slot)",
+            "score": num,
+            "pass": num <= 6
         })
 
-        if NUM_SCORE > 6:
+        if num > 6:
             continue
 
         # =========================
@@ -296,10 +254,8 @@ def apply_elimination_gates(lineup, pitcher_profile):
 
         gate_log.append({
             "gate": 14,
-            "formula": "PROTECTION = lineup protection rating",
-            "input": prot,
+            "formula": "PROTECTION RATING",
             "score": prot,
-            "threshold": 45,
             "pass": prot >= 45
         })
 
@@ -309,14 +265,12 @@ def apply_elimination_gates(lineup, pitcher_profile):
         # =========================
         # GATE 15 — FINISHER
         # =========================
-        finisher = HARDHIT_SCORE + BARREL_SCORE + EV_SCORE
+        finisher = hh + barrel + ev
 
         gate_log.append({
             "gate": 15,
-            "formula": "FINISHER = HARDHIT + BARREL + EV",
-            "input": None,
+            "formula": "FINISHER = HH + BARREL + EV",
             "score": finisher,
-            "threshold": 0.9,
             "pass": finisher >= 0.9
         })
 
@@ -326,14 +280,12 @@ def apply_elimination_gates(lineup, pitcher_profile):
         # =========================
         # GATE 16 — COLLAPSE
         # =========================
-        collapse = (EV_SCORE + BARREL_SCORE) / 2
+        collapse = (ev + barrel) / 2
 
         gate_log.append({
             "gate": 16,
-            "formula": "COLLAPSE = (EV + BARREL) / 2",
-            "input": None,
+            "formula": "COLLAPSE = (EV + BARREL)/2",
             "score": collapse,
-            "threshold": 0.25,
             "pass": collapse >= 0.25
         })
 
@@ -348,9 +300,7 @@ def apply_elimination_gates(lineup, pitcher_profile):
         gate_log.append({
             "gate": 17,
             "formula": "AUDIT = FINISHER + OWNERSHIP",
-            "input": None,
             "score": audit,
-            "threshold": 2.5,
             "pass": audit >= 2.5
         })
 
@@ -360,14 +310,12 @@ def apply_elimination_gates(lineup, pitcher_profile):
         # =========================
         # GATE 18 — FINAL SCORE
         # =========================
-        final_score = audit + RHYTHM_SCORE
+        final_score = audit + rhythm
 
         gate_log.append({
             "gate": 18,
             "formula": "FINAL = AUDIT + RHYTHM",
-            "input": None,
             "score": final_score,
-            "threshold": None,
             "pass": True
         })
 
@@ -376,10 +324,7 @@ def apply_elimination_gates(lineup, pitcher_profile):
             "name": p.get("name", p["id"]),
             "slot": slot,
             "final_score": final_score,
-            "gates": gate_log
+            "gate_history": gate_log
         })
 
-    if not survivors:
-        return []
-
-    return [max(survivors, key=lambda x: x["final_score"])]
+    return survivors
