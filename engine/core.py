@@ -3,7 +3,6 @@ from services.starter import get_probable_starter
 from services.pitcher import get_pitcher_profile
 from services.player_map import get_player_name
 from engine.gates import apply_elimination_gates
-from services.lineup_normalizer import normalize_lineup
 
 
 def run_slate(games):
@@ -16,11 +15,14 @@ def run_slate(games):
         label = f"{g.get('away')} vs {g.get('home')}"
 
         # -------------------------
-        # LINEUP FETCH
+        # LINEUP
         # -------------------------
-        raw_lineup = get_confirmed_lineup(gamePk)
+from services.lineup_normalizer import normalize_lineup
 
-        if not raw_lineup:
+raw_lineup = get_confirmed_lineup(gamePk)
+lineup = normalize_lineup(raw_lineup)
+
+        if not lineup:
             results.append({
                 "game": label,
                 "survivor": "NO LINEUP DATA YET",
@@ -29,12 +31,7 @@ def run_slate(games):
             continue
 
         # -------------------------
-        # LINEUP NORMALIZATION (CRITICAL FIX)
-        # -------------------------
-        lineup = normalize_lineup(raw_lineup)
-
-        # -------------------------
-        # STARTER FETCH
+        # STARTER (SAFE FIX)
         # -------------------------
         starters = get_probable_starter(gamePk)
 
@@ -53,7 +50,7 @@ def run_slate(games):
             continue
 
         # -------------------------
-        # PITCHER PROFILE
+        # PITCHER PROFILE (SAFE FIX)
         # -------------------------
         pitcher_profile = get_pitcher_profile(pitcher_name)
 
@@ -79,7 +76,7 @@ def run_slate(games):
             continue
 
         # -------------------------
-        # CORE PICK (SAFE MAX SCORE PICK)
+        # SAFE WINNER SELECTION (FIX)
         # -------------------------
         winner = max(
             survivors,
