@@ -1,13 +1,36 @@
 def build_core3(results):
 
-    cleaned = []
+    if not results:
+        return []
 
-    for r in results:
-        if r.get("survivor"):
-            cleaned.append(r)
+    # -------------------------
+    # FILTER VALID RESULTS
+    # -------------------------
+    valid = [r for r in results if r.get("survivor")]
 
-    # ONLY TOP 3 GAMES → CORE 3
-    cleaned = cleaned[:3]
+    # -------------------------
+    # RANK BY GAME SIGNAL STRENGTH
+    # (fallback if no score exists)
+    # -------------------------
+    def score(r):
+        why = str(r.get("why", "")).lower()
+
+        s = 0
+        if "pass gate 1" in why:
+            s += 1
+        if "pass gate 2" in why:
+            s += 1
+        if "exploit" in why:
+            s += 2
+
+        return s
+
+    valid.sort(key=score, reverse=True)
+
+    # -------------------------
+    # CORE 3 LIMIT (TRUE 3 ONLY)
+    # -------------------------
+    top3 = valid[:3]
 
     return [
         {
@@ -16,5 +39,5 @@ def build_core3(results):
             "game": r["game"],
             "reason": "CORE 3 EVENT LOCK"
         }
-        for i, r in enumerate(cleaned)
+        for i, r in enumerate(top3)
     ]
