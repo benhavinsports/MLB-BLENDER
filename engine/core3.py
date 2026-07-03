@@ -3,18 +3,14 @@ from collections import defaultdict
 
 def build_core3(results):
     """
-    CORE 3 v2 — EVENT OWNERSHIP ENGINE
+    CORE 3 v3 — EVENT OWNERSHIP ENGINE
 
     PURPOSE:
-    Assign HR event recipients per game using:
+    Assign EXACT HR event recipient per game using:
     - gate survivors
-    - pitcher leak environment
-    - decoy transfer logic
-    - adjacency inheritance rules
-
-    NO SCORE RANKING
-    NO TOP PLAYERS
-    ONLY EVENT ASSIGNMENT
+    - matchup context
+    - decoy suppression
+    - adjacency transfer logic
     """
 
     if not results:
@@ -23,7 +19,7 @@ def build_core3(results):
     # -------------------------
     # GROUP BY GAME
     # -------------------------
-    game_map = defaultdict(list)
+    games = defaultdict(list)
 
     for r in results:
         if r.get("survivor") in [
@@ -34,87 +30,79 @@ def build_core3(results):
         ]:
             continue
 
-        game_map[r["game"]].append(r)
+        games[r["game"]].append(r)
 
-    core3 = []
+    final = []
 
     # -------------------------
-    # PROCESS EACH GAME INDEPENDENTLY
+    # PROCESS EACH GAME
     # -------------------------
-    for game, players in game_map.items():
+    for game, players in games.items():
 
         if not players:
             continue
 
         # -------------------------
-        # STEP 1 — IDENTIFY EVENT LANE CANDIDATES
+        # STEP 1 — EVENT LANE SCORING (NOT RANKING PLAYERS)
         # -------------------------
-        # These are all valid gate survivors for this game
-        candidates = players
-
-        # -------------------------
-        # STEP 2 — CHECK DECOY RISK
-        # -------------------------
-        # If multiple strong candidates exist, avoid obvious chalk pick
-
-        def decoy_score(p):
-            why = str(p.get("why", "")).lower()
-
+        def event_lane_score(p):
             score = 0
 
-            # simple proxies for "chalk / obvious"
+            why = str(p.get("why", "")).lower()
+
+            # gate strength signals (soft interpretation)
             if "top order" in why:
                 score += 1
             if "exploit" in why:
-                score += 1
+                score += 2
             if "pass" in why:
                 score += 1
 
             return score
 
-        # sort by decoy risk (LOW risk preferred)
-        candidates.sort(key=lambda x: decoy_score(x))
+        for p in players:
+            p["event_score"] = event_lane_score(p)
 
         # -------------------------
-        # STEP 3 — EVENT OWNERSHIP SELECTION
+        # STEP 2 — DECOY RISK DETECTION
         # -------------------------
-        # NOT highest score — lowest "visibility bias"
+        players.sort(key=lambda x: x["event_score"])
 
-        chosen = candidates[0]
+        # lowest visibility bias = best event recipient candidate
+        base = players[0]
 
         # -------------------------
-        # STEP 4 — ADJACENCY TRANSFER CHECK
+        # STEP 3 — TRANSFER ENGINE (YOUR GATE 10.5 LOGIC)
         # -------------------------
-        # If multiple similar candidates exist, allow transfer
+        if len(players) > 1:
 
-        if len(candidates) > 1:
+            next_p = players[1]
 
-            gap = abs(
-                decoy_score(candidates[0]) - decoy_score(candidates[1])
-            )
+            gap = abs(base["event_score"] - next_p["event_score"])
 
-            # transfer condition (your rule)
+            # if too similar → transfer event away from obvious chalk
             if gap <= 1:
-                # shift ownership to "less obvious" hitter
-                chosen = candidates[1]
+                chosen = next_p
+            else:
+                chosen = base
+        else:
+            chosen = base
 
         # -------------------------
-        # STEP 5 — FINAL LOCK
+        # STEP 4 — FINAL EVENT LOCK
         # -------------------------
-        core3.append({
-            "rank": len(core3) + 1,
+        final.append({
+            "rank": len(final) + 1,
             "player": chosen.get("survivor"),
             "game": game,
-            "reason": chosen.get("why", "EVENT OWNERSHIP LOCK")
+            "reason": "HR EVENT RECIPIENT ASSIGNED"
         })
 
-        # enforce 1 per game (your rule)
-        if len(core3) >= len(game_map):
+        # enforce 1 per game
+        if len(final) >= len(games):
             break
 
-    # -------------------------
-    # FINAL SAFETY SORT (NOT SCORING — JUST STABILITY)
-    # -------------------------
-    core3.sort(key=lambda x: x["game"])
+    # stable ordering
+    final.sort(key=lambda x: x["game"])
 
-    return core3
+    return final
