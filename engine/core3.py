@@ -1,37 +1,74 @@
+from collections import defaultdict
+
 def build_core3(results):
+    """
+    CORE 3 — TRUE EVENT REDUCTION ENGINE
+
+    RULE:
+    - Take ALL game winners (no assumption on count)
+    - Then reduce to TOP 3 based on gate strength signals
+    """
 
     if not results:
         return []
 
     # -------------------------
-    # FILTER VALID RESULTS
+    # STEP 1 — VALIDATE INPUTS
     # -------------------------
-    valid = [r for r in results if r.get("survivor")]
+    winners = [
+        r for r in results
+        if r.get("survivor")
+        and "NO" not in r["survivor"]
+    ]
 
-    # -------------------------
-    # RANK BY GAME SIGNAL STRENGTH
-    # (fallback if no score exists)
-    # -------------------------
-    def score(r):
-        why = str(r.get("why", "")).lower()
-
-        s = 0
-        if "pass gate 1" in why:
-            s += 1
-        if "pass gate 2" in why:
-            s += 1
-        if "exploit" in why:
-            s += 2
-
-        return s
-
-    valid.sort(key=score, reverse=True)
+    if not winners:
+        return []
 
     # -------------------------
-    # CORE 3 LIMIT (TRUE 3 ONLY)
+    # STEP 2 — SCORE EVENT STRENGTH
     # -------------------------
-    top3 = valid[:3]
+    def core_score(r):
+        score = 0
 
+        why = r.get("why", [])
+
+        # handle list or string safely
+        if isinstance(why, list):
+            why_text = " ".join(why)
+        else:
+            why_text = str(why)
+
+        why_text = why_text.lower()
+
+        # signal boosts from your gates
+        if "top order" in why_text:
+            score += 2
+        if "exploit" in why_text:
+            score += 2
+        if "pass gate 1" in why_text:
+            score += 1
+        if "pass gate 2" in why_text:
+            score += 1
+
+        return score
+
+    # attach scores
+    for w in winners:
+        w["core_score"] = core_score(w)
+
+    # -------------------------
+    # STEP 3 — SORT BY EVENT STRENGTH
+    # -------------------------
+    winners.sort(key=lambda x: x["core_score"], reverse=True)
+
+    # -------------------------
+    # STEP 4 — CORE 3 DYNAMIC REDUCTION
+    # -------------------------
+    core3 = winners[:3]
+
+    # -------------------------
+    # STEP 5 — OUTPUT CLEAN FORMAT
+    # -------------------------
     return [
         {
             "rank": i + 1,
@@ -39,5 +76,5 @@ def build_core3(results):
             "game": r["game"],
             "reason": "CORE 3 EVENT LOCK"
         }
-        for i, r in enumerate(top3)
+        for i, r in enumerate(core3)
     ]
