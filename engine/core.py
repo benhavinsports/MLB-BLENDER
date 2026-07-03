@@ -17,7 +17,10 @@ def run_slate(games):
         # -------------------------
         # LINEUP
         # -------------------------
-        lineup = get_confirmed_lineup(gamePk)
+from services.lineup_normalizer import normalize_lineup
+
+raw_lineup = get_confirmed_lineup(gamePk)
+lineup = normalize_lineup(raw_lineup)
 
         if not lineup:
             results.append({
