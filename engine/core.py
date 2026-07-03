@@ -24,45 +24,30 @@ def run_slate(games):
         if not lineup:
             results.append({
                 "game": label,
-                "survivor": "NO LINEUP DATA YET",
-                "why": "MLB FEED NOT POPULATED"
+                "survivor": "NO LINEUP DATA",
+                "why": "EMPTY LINEUP"
             })
             continue
 
         # -------------------------
-        # STARTER
+        # PITCHER
         # -------------------------
         starters = get_probable_starter(gamePk)
 
-        pitcher_name = (
-            starters.get("away")
-            or starters.get("home")
-            or None
-        )
+        pitcher_name = starters.get("away") or starters.get("home")
 
         if not pitcher_name:
             results.append({
                 "game": label,
-                "survivor": "NO PITCHER DATA",
-                "why": "STARTER NOT RESOLVED"
+                "survivor": "NO PITCHER",
+                "why": "NO STARTER FOUND"
             })
             continue
 
-        # -------------------------
-        # PITCHER PROFILE
-        # -------------------------
         pitcher_profile = get_pitcher_profile(pitcher_name)
 
-        if not pitcher_profile:
-            results.append({
-                "game": label,
-                "survivor": "NO PITCHER DATA",
-                "why": "PITCHER PROFILE MISSING"
-            })
-            continue
-
         # -------------------------
-        # ELIMINATION GATES
+        # TRUE GATE ENGINE
         # -------------------------
         survivors = apply_elimination_gates(lineup, pitcher_profile)
 
@@ -70,22 +55,19 @@ def run_slate(games):
             results.append({
                 "game": label,
                 "survivor": "NO SURVIVOR",
-                "why": "ALL PLAYERS ELIMINATED"
+                "why": "ALL ELIMINATED"
             })
             continue
 
         # -------------------------
-        # WINNER
+        # GAME WINNER = FIRST SURVIVOR (NO SCORING)
         # -------------------------
-        winner = max(
-            survivors,
-            key=lambda x: x.get("score", 0)
-        )
+        winner = survivors[0]
 
         results.append({
             "game": label,
             "survivor": get_player_name(winner["id"]),
-            "why": "PURE ELIMINATION ENGINE PASS"
+            "why": winner["gate_history"]
         })
 
     return results
