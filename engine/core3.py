@@ -1,80 +1,108 @@
 from collections import defaultdict
 
+
 def build_core3(results):
     """
-    CORE 3 — TRUE EVENT REDUCTION ENGINE
+    CORE 3 v2 — EVENT OWNERSHIP ENGINE (FIXED)
 
-    RULE:
-    - Take ALL game winners (no assumption on count)
-    - Then reduce to TOP 3 based on gate strength signals
+    PURPOSE:
+    - NOT ranking hitters
+    - NOT slicing lists
+    - NOT guessing
+
+    IT RESOLVES:
+    WHO RECEIVES THE HR EVENT PER GAME
     """
 
     if not results:
         return []
 
     # -------------------------
-    # STEP 1 — VALIDATE INPUTS
+    # GROUP BY GAME
     # -------------------------
-    winners = [
-        r for r in results
-        if r.get("survivor")
-        and "NO" not in r["survivor"]
-    ]
+    games = defaultdict(list)
 
-    if not winners:
-        return []
+    for r in results:
+        if not r.get("survivor"):
+            continue
+
+        games[r["game"]].append(r)
+
+    final = []
 
     # -------------------------
-    # STEP 2 — SCORE EVENT STRENGTH
+    # PROCESS EACH GAME
     # -------------------------
-    def core_score(r):
-        score = 0
+    for game, players in games.items():
 
-        why = r.get("why", [])
+        if len(players) == 0:
+            continue
 
-        # handle list or string safely
-        if isinstance(why, list):
-            why_text = " ".join(why)
+        # =========================
+        # STEP 1 — EXTRACT TRUE EVENT SIGNAL
+        # =========================
+        def ownership_score(p):
+            gates = p.get("gates", [])
+
+            score = 0
+
+            for g in gates:
+
+                # HARD PASS SIGNALS ONLY
+                if isinstance(g, dict):
+
+                    if g.get("pass") is True:
+                        score += 1
+
+                    # reward high-impact gates
+                    if g.get("gate") in [4, 6, 12, 15, 18]:
+                        score += (g.get("score", 0) or 0)
+
+            return score
+
+        # compute ownership
+        for p in players:
+            p["ownership_score"] = ownership_score(p)
+
+        # =========================
+        # STEP 2 — SORT BY EVENT OWNERSHIP
+        # =========================
+        players.sort(key=lambda x: x["ownership_score"], reverse=True)
+
+        # strongest event receiver
+        primary = players[0]
+
+        # =========================
+        # STEP 3 — DECOY COLLISION RESOLUTION
+        # =========================
+        if len(players) > 1:
+
+            second = players[1]
+
+            gap = abs(primary["ownership_score"] - second["ownership_score"])
+
+            # if too close → event shifts (your 10.5 logic)
+            if gap <= 1.0:
+                chosen = second
+            else:
+                chosen = primary
         else:
-            why_text = str(why)
+            chosen = primary
 
-        why_text = why_text.lower()
-
-        # signal boosts from your gates
-        if "top order" in why_text:
-            score += 2
-        if "exploit" in why_text:
-            score += 2
-        if "pass gate 1" in why_text:
-            score += 1
-        if "pass gate 2" in why_text:
-            score += 1
-
-        return score
-
-    # attach scores
-    for w in winners:
-        w["core_score"] = core_score(w)
+        # =========================
+        # STEP 4 — FINAL LOCK (STRICT 1 PER GAME)
+        # =========================
+        final.append({
+            "rank": len(final) + 1,
+            "player": chosen["survivor"],
+            "game": game,
+            "reason": "EVENT OWNERSHIP RESOLVED",
+            "ownership_score": chosen["ownership_score"]
+        })
 
     # -------------------------
-    # STEP 3 — SORT BY EVENT STRENGTH
+    # FINAL SAFETY: 1 PER GAME ONLY
     # -------------------------
-    winners.sort(key=lambda x: x["core_score"], reverse=True)
+    final.sort(key=lambda x: x["game"])
 
-    # -------------------------
-    # STEP 4 — CORE 3 DYNAMIC REDUCTION
-    # -------------------------
-    core3 = winners[:3]
-
-    # -------------------------
-    # STEP 5 — OUTPUT CLEAN FORMAT
-    # -------------------------
-    return [
-        {
-            "rank": i + 1,
-            "player": r["survivor"],
-            "game": r["game"],
-            "reason": "CORE 3 EVENT LOCK"
-        }
-        for i, r in enumerate(core3)
-    ]
+    return final
