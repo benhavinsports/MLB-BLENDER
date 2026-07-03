@@ -1,31 +1,20 @@
 def build_core3(results):
-    """
-    CORE 3 v1 — PURE EVENT SELECTION ENGINE
 
-    RULE:
-    - NO scoring parsing
-    - NO string analysis
-    - ONLY structured winners per game
-    """
-
-    final = []
+    cleaned = []
 
     for r in results:
+        if r.get("survivor"):
+            cleaned.append(r)
 
-        if r.get("survivor") in [
-            "NO LINEUP DATA",
-            "NO PITCHER",
-            "NO SURVIVOR"
-        ]:
-            continue
+    # ONLY TOP 3 GAMES → CORE 3
+    cleaned = cleaned[:3]
 
-        final.append({
-            "game": r["game"],
+    return [
+        {
+            "rank": i + 1,
             "player": r["survivor"],
-            "gate_info": r.get("why", [])
-        })
-
-    # -------------------------
-    # FINAL REDUCTION (ONLY HERE)
-    # -------------------------
-    return final[:3]
+            "game": r["game"],
+            "reason": "CORE 3 EVENT LOCK"
+        }
+        for i, r in enumerate(cleaned)
+    ]
