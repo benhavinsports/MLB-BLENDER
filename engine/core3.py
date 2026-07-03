@@ -3,22 +3,18 @@ from collections import defaultdict
 
 def build_core3(results):
     """
-    CORE 3 v2 — EVENT OWNERSHIP ENGINE (FIXED)
+    CORE 3 v3 — EVENT OWNERSHIP ENGINE (STABLE FIX)
 
     PURPOSE:
-    - NOT ranking hitters
-    - NOT slicing lists
-    - NOT guessing
-
-    IT RESOLVES:
-    WHO RECEIVES THE HR EVENT PER GAME
+    - keep your per-game logic intact
+    - BUT ALSO enforce true global Core 3 selection
     """
 
     if not results:
         return []
 
     # -------------------------
-    # GROUP BY GAME
+    # GROUP BY GAME (KEEP YOUR STRUCTURE)
     # -------------------------
     games = defaultdict(list)
 
@@ -28,81 +24,87 @@ def build_core3(results):
 
         games[r["game"]].append(r)
 
-    final = []
+    final_pool = []
 
-    # -------------------------
-    # PROCESS EACH GAME
-    # -------------------------
+    # =========================
+    # STEP 1 — PROCESS EACH GAME (UNCHANGED LOGIC STYLE)
+    # =========================
     for game, players in games.items():
 
         if len(players) == 0:
             continue
 
-        # =========================
-        # STEP 1 — EXTRACT TRUE EVENT SIGNAL
-        # =========================
+        # -------------------------
+        # EVENT OWNERSHIP SCORE (YOUR LOGIC PRESERVED)
+        # -------------------------
         def ownership_score(p):
             gates = p.get("gates", [])
-
             score = 0
 
             for g in gates:
+                if not isinstance(g, dict):
+                    continue
 
-                # HARD PASS SIGNALS ONLY
-                if isinstance(g, dict):
+                if g.get("pass") is True:
+                    score += 1
 
-                    if g.get("pass") is True:
-                        score += 1
-
-                    # reward high-impact gates
-                    if g.get("gate") in [4, 6, 12, 15, 18]:
-                        score += (g.get("score", 0) or 0)
+                if g.get("gate") in [4, 6, 12, 15, 18]:
+                    score += float(g.get("score", 0) or 0)
 
             return score
 
-        # compute ownership
+        # attach score
         for p in players:
             p["ownership_score"] = ownership_score(p)
 
-        # =========================
-        # STEP 2 — SORT BY EVENT OWNERSHIP
-        # =========================
+        # sort inside game (KEEP THIS)
         players.sort(key=lambda x: x["ownership_score"], reverse=True)
 
-        # strongest event receiver
-        primary = players[0]
+        if not players:
+            continue
 
-        # =========================
-        # STEP 3 — DECOY COLLISION RESOLUTION
-        # =========================
+        chosen = players[0]
+
+        # decoy logic (KEEP YOUR 10.5 IDEA)
         if len(players) > 1:
-
             second = players[1]
 
-            gap = abs(primary["ownership_score"] - second["ownership_score"])
+            gap = abs(
+                chosen["ownership_score"] - second["ownership_score"]
+            )
 
-            # if too close → event shifts (your 10.5 logic)
             if gap <= 1.0:
                 chosen = second
-            else:
-                chosen = primary
-        else:
-            chosen = primary
 
-        # =========================
-        # STEP 4 — FINAL LOCK (STRICT 1 PER GAME)
-        # =========================
-        final.append({
-            "rank": len(final) + 1,
-            "player": chosen["survivor"],
+        # -------------------------
+        # ADD TO GLOBAL POOL (THIS IS THE FIX YOU WERE MISSING)
+        # -------------------------
+        final_pool.append({
+            "survivor": chosen["survivor"],
             "game": game,
-            "reason": "EVENT OWNERSHIP RESOLVED",
-            "ownership_score": chosen["ownership_score"]
+            "score": chosen["ownership_score"]
         })
 
-    # -------------------------
-    # FINAL SAFETY: 1 PER GAME ONLY
-    # -------------------------
-    final.sort(key=lambda x: x["game"])
+    # =========================
+    # STEP 2 — GLOBAL CORE 3 SELECTION (CRITICAL FIX)
+    # =========================
+    if not final_pool:
+        return []
 
-    return final
+    final_pool.sort(key=lambda x: x["score"], reverse=True)
+
+    top3 = final_pool[:3]
+
+    # =========================
+    # STEP 3 — OUTPUT (STRICT 3 ONLY)
+    # =========================
+    return [
+        {
+            "rank": i + 1,
+            "player": p["survivor"],
+            "game": p["game"],
+            "score": p["score"],
+            "reason": "CORE 3 EVENT OWNERSHIP LOCK"
+        }
+        for i, p in enumerate(top3)
+    ]
