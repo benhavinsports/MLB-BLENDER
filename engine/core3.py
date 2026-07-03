@@ -1,93 +1,120 @@
+from collections import defaultdict
+
+
 def build_core3(results):
-
     """
-    CORE 3 — Slate Stability Lock Mode
-    (NO scoring, NO ML, fully deterministic 18-gate aligned system)
+    CORE 3 v2 — EVENT OWNERSHIP ENGINE
+
+    PURPOSE:
+    Assign HR event recipients per game using:
+    - gate survivors
+    - pitcher leak environment
+    - decoy transfer logic
+    - adjacency inheritance rules
+
+    NO SCORE RANKING
+    NO TOP PLAYERS
+    ONLY EVENT ASSIGNMENT
     """
 
-    pool = []
+    if not results:
+        return []
+
+    # -------------------------
+    # GROUP BY GAME
+    # -------------------------
+    game_map = defaultdict(list)
 
     for r in results:
-
-        survivor = r.get("survivor")
-
-        if survivor in [
+        if r.get("survivor") in [
             "NO LINEUP DATA YET",
             "NO SURVIVOR",
-            "NONE",
+            "NO PITCHER DATA",
             None
         ]:
             continue
 
-        why = str(r.get("why", "")).upper()
+        game_map[r["game"]].append(r)
 
-        # ----------------------------
-        # TIER CLASSIFICATION (gate strength only)
-        # ----------------------------
-        if "PURE ELIMINATION ENGINE PASS" in why:
-            tier = 3
-        elif "PASS" in why:
-            tier = 2
-        else:
-            tier = 1
-
-        pool.append({
-            "name": survivor,
-            "game": r.get("game"),
-            "why": r.get("why"),
-            "tier": tier
-        })
-
-    if not pool:
-        return []
-
-    # ----------------------------
-    # STEP 1 — FIND STRONGEST TIER
-    # ----------------------------
-    max_tier = max(p["tier"] for p in pool)
-
-    top_cluster = [p for p in pool if p["tier"] == max_tier]
-
-    # ----------------------------
-    # STEP 2 — GROUP BY GAME (ENVIRONMENT LOCK)
-    # ----------------------------
-    games = {}
-
-    for p in top_cluster:
-        games.setdefault(p["game"], []).append(p)
-
-    # ----------------------------
-    # STEP 3 — ENVIRONMENT PRIORITY ORDER
-    # (most populated strong environments first)
-    # ----------------------------
-    sorted_games = sorted(
-        games.items(),
-        key=lambda x: len(x[1]),
-        reverse=True
-    )
-
-    # ----------------------------
-    # STEP 4 — SLATE LOCK (NO ORDER BIAS)
-    # ----------------------------
     core3 = []
 
-    for game, players in sorted_games:
-        for p in players:
-            core3.append(p)
-            if len(core3) == 3:
-                break
-        if len(core3) == 3:
+    # -------------------------
+    # PROCESS EACH GAME INDEPENDENTLY
+    # -------------------------
+    for game, players in game_map.items():
+
+        if not players:
+            continue
+
+        # -------------------------
+        # STEP 1 — IDENTIFY EVENT LANE CANDIDATES
+        # -------------------------
+        # These are all valid gate survivors for this game
+        candidates = players
+
+        # -------------------------
+        # STEP 2 — CHECK DECOY RISK
+        # -------------------------
+        # If multiple strong candidates exist, avoid obvious chalk pick
+
+        def decoy_score(p):
+            why = str(p.get("why", "")).lower()
+
+            score = 0
+
+            # simple proxies for "chalk / obvious"
+            if "top order" in why:
+                score += 1
+            if "exploit" in why:
+                score += 1
+            if "pass" in why:
+                score += 1
+
+            return score
+
+        # sort by decoy risk (LOW risk preferred)
+        candidates.sort(key=lambda x: decoy_score(x))
+
+        # -------------------------
+        # STEP 3 — EVENT OWNERSHIP SELECTION
+        # -------------------------
+        # NOT highest score — lowest "visibility bias"
+
+        chosen = candidates[0]
+
+        # -------------------------
+        # STEP 4 — ADJACENCY TRANSFER CHECK
+        # -------------------------
+        # If multiple similar candidates exist, allow transfer
+
+        if len(candidates) > 1:
+
+            gap = abs(
+                decoy_score(candidates[0]) - decoy_score(candidates[1])
+            )
+
+            # transfer condition (your rule)
+            if gap <= 1:
+                # shift ownership to "less obvious" hitter
+                chosen = candidates[1]
+
+        # -------------------------
+        # STEP 5 — FINAL LOCK
+        # -------------------------
+        core3.append({
+            "rank": len(core3) + 1,
+            "player": chosen.get("survivor"),
+            "game": game,
+            "reason": chosen.get("why", "EVENT OWNERSHIP LOCK")
+        })
+
+        # enforce 1 per game (your rule)
+        if len(core3) >= len(game_map):
             break
 
-    # ----------------------------
-    # STEP 5 — FINAL OUTPUT FORMAT
-    # ----------------------------
-    return [
-        {
-            "rank": i + 1,
-            "player": p["name"],
-            "game": p["game"],
-            "reason": p["why"]
-        }
-        for i, p in enumerate(core3)
-    ]
+    # -------------------------
+    # FINAL SAFETY SORT (NOT SCORING — JUST STABILITY)
+    # -------------------------
+    core3.sort(key=lambda x: x["game"])
+
+    return core3
