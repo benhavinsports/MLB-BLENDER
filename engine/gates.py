@@ -1,83 +1,64 @@
 def apply_elimination_gates(lineup, pitcher_profile):
-
     """
-    18-GATE ELIMINATION ENGINE (RANKED OUTPUT VERSION)
+    BLENDER v1 TRUE GATE ENGINE
 
-    INPUT:
-        lineup = list of players
-        pitcher_profile = dict of pitcher weaknesses
-
-    OUTPUT:
-        ranked list of surviving players with scores
+    RULE:
+    - NO scoring
+    - NO ranking inside gates
+    - ONLY PASS / FAIL
+    - MUST carry gate history
     """
 
-    results = []
+    survivors = []
 
     for p in lineup:
 
-        score = 0
-        reasons = []
+        gate_history = []
+        alive = True
 
         # -------------------------
-        # GATE 1: LINEUP POSITION (FIXED BIAS ONLY)
+        # GATE 0 — SLOT CHECK
         # -------------------------
         slot = p.get("slot", 9)
 
-        # ⚠️ FIX: reduced dominance, KEEP STRUCTURE SAME
         if slot <= 3:
-            score += 1.2   # was 3 (too strong)
-            reasons.append("top order boost")
+            gate_history.append("PASS Gate 0 - elite slot")
         elif slot <= 6:
-            score += 0.8   # was 1 (slightly adjusted)
+            gate_history.append("PASS Gate 0 - mid slot")
         else:
-            score -= 0.5
-            reasons.append("low order penalty")
+            gate_history.append("FAIL Gate 0 - bottom order")
+            alive = False
+
+        if not alive:
+            continue
 
         # -------------------------
-        # GATE 2: SIDES PLAYS (UNCHANGED)
+        # GATE 1 — HANDEDNESS MATCH
         # -------------------------
-        if p.get("side") == "away":
-            score += 0.3   # was 1 (softened to reduce bias)
+        if pitcher_profile.get("weak_vs_right") and p.get("handedness") == "R":
+            gate_history.append("PASS Gate 1 - platoon advantage")
+        elif pitcher_profile.get("weak_vs_left") and p.get("handedness") == "L":
+            gate_history.append("PASS Gate 1 - platoon advantage")
         else:
-            score += 0.1
+            gate_history.append("PASS Gate 1 - neutral matchup")
 
         # -------------------------
-        # GATE 3: PITCHER WEAKNESS MATCH (UNCHANGED LOGIC)
+        # GATE 2 — ENVIRONMENT
         # -------------------------
-        if pitcher_profile:
-
-            if pitcher_profile.get("weak_vs_right") and p.get("handedness") == "R":
-                score += 1.5
-                reasons.append("pitcher right-hand weakness exploit")
-
-            if pitcher_profile.get("weak_vs_left") and p.get("handedness") == "L":
-                score += 1.5
-                reasons.append("pitcher left-hand weakness exploit")
+        if pitcher_profile.get("park_factor", 1) > 1.05:
+            gate_history.append("PASS Gate 2 - hitter park")
+        else:
+            gate_history.append("PASS Gate 2 - neutral park")
 
         # -------------------------
-        # GATE 4: ENVIRONMENT BOOST (UNCHANGED LOGIC)
+        # FINAL DECISION
         # -------------------------
-        if pitcher_profile and pitcher_profile.get("park_factor", 1) > 1.05:
-            score += 0.5   # was 1 (slightly reduced influence)
-            reasons.append("hitter-friendly park")
+        survivors.append({
+            "id": p["id"],
+            "name": p.get("name", p["id"]),
+            "slot": slot,
+            "handedness": p.get("handedness"),
+            "gate_history": gate_history
+        })
 
-        # -------------------------
-        # ELIMINATION RULE (SLIGHT ADJUSTMENT)
-        # -------------------------
-        passed = score >= 1.25   # was 3 (this was also too strict for bias system)
-
-        if passed:
-            results.append({
-                "id": p.get("id"),
-                "name": p.get("name", p.get("id")),
-                "slot": slot,
-                "score": round(score, 3),
-                "reasons": reasons
-            })
-
-    # -------------------------
-    # CRITICAL FIX: SORT BEFORE RETURN (UNCHANGED)
-    # -------------------------
-    results.sort(key=lambda x: x["score"], reverse=True)
-
-    return results
+    return survivors
