@@ -1,108 +1,91 @@
-from collections import defaultdict
+from services.lineup import get_confirmed_lineup
+from services.starter import get_probable_starter
+from services.pitcher import get_pitcher_profile
+from services.player_map import get_player_name
+from engine.gates import apply_elimination_gates
+from services.lineup_normalizer import normalize_lineup
 
 
-def build_core3(results):
-    """
-    CORE 3 v3 — EVENT OWNERSHIP ENGINE
+def run_slate(games):
 
-    PURPOSE:
-    Assign EXACT HR event recipient per game using:
-    - gate survivors
-    - matchup context
-    - decoy suppression
-    - adjacency transfer logic
-    """
+    results = []
 
-    if not results:
-        return []
+    for g in games:
 
-    # -------------------------
-    # GROUP BY GAME
-    # -------------------------
-    games = defaultdict(list)
+        gamePk = g.get("gamePk")
+        label = f"{g.get('away')} vs {g.get('home')}"
 
-    for r in results:
-        if r.get("survivor") in [
-            "NO LINEUP DATA YET",
-            "NO SURVIVOR",
-            "NO PITCHER DATA",
-            None
-        ]:
-            continue
+        # -------------------------
+        # LINEUP
+        # -------------------------
+        raw_lineup = get_confirmed_lineup(gamePk)
+        lineup = normalize_lineup(raw_lineup)
 
-        games[r["game"]].append(r)
-
-    final = []
-
-    # -------------------------
-    # PROCESS EACH GAME
-    # -------------------------
-    for game, players in games.items():
-
-        if not players:
+        if not lineup:
+            results.append({
+                "game": label,
+                "survivor": "NO LINEUP DATA YET",
+                "why": "MLB FEED NOT POPULATED"
+            })
             continue
 
         # -------------------------
-        # STEP 1 — EVENT LANE SCORING (NOT RANKING PLAYERS)
+        # STARTER
         # -------------------------
-        def event_lane_score(p):
-            score = 0
+        starters = get_probable_starter(gamePk)
 
-            why = str(p.get("why", "")).lower()
+        pitcher_name = (
+            starters.get("away")
+            or starters.get("home")
+            or None
+        )
 
-            # gate strength signals (soft interpretation)
-            if "top order" in why:
-                score += 1
-            if "exploit" in why:
-                score += 2
-            if "pass" in why:
-                score += 1
-
-            return score
-
-        for p in players:
-            p["event_score"] = event_lane_score(p)
+        if not pitcher_name:
+            results.append({
+                "game": label,
+                "survivor": "NO PITCHER DATA",
+                "why": "STARTER NOT RESOLVED"
+            })
+            continue
 
         # -------------------------
-        # STEP 2 — DECOY RISK DETECTION
+        # PITCHER PROFILE
         # -------------------------
-        players.sort(key=lambda x: x["event_score"])
+        pitcher_profile = get_pitcher_profile(pitcher_name)
 
-        # lowest visibility bias = best event recipient candidate
-        base = players[0]
-
-        # -------------------------
-        # STEP 3 — TRANSFER ENGINE (YOUR GATE 10.5 LOGIC)
-        # -------------------------
-        if len(players) > 1:
-
-            next_p = players[1]
-
-            gap = abs(base["event_score"] - next_p["event_score"])
-
-            # if too similar → transfer event away from obvious chalk
-            if gap <= 1:
-                chosen = next_p
-            else:
-                chosen = base
-        else:
-            chosen = base
+        if not pitcher_profile:
+            results.append({
+                "game": label,
+                "survivor": "NO PITCHER DATA",
+                "why": "PITCHER PROFILE MISSING"
+            })
+            continue
 
         # -------------------------
-        # STEP 4 — FINAL EVENT LOCK
+        # ELIMINATION GATES
         # -------------------------
-        final.append({
-            "rank": len(final) + 1,
-            "player": chosen.get("survivor"),
-            "game": game,
-            "reason": "HR EVENT RECIPIENT ASSIGNED"
+        survivors = apply_elimination_gates(lineup, pitcher_profile)
+
+        if not survivors:
+            results.append({
+                "game": label,
+                "survivor": "NO SURVIVOR",
+                "why": "ALL PLAYERS ELIMINATED"
+            })
+            continue
+
+        # -------------------------
+        # WINNER
+        # -------------------------
+        winner = max(
+            survivors,
+            key=lambda x: x.get("score", 0)
+        )
+
+        results.append({
+            "game": label,
+            "survivor": get_player_name(winner["id"]),
+            "why": "PURE ELIMINATION ENGINE PASS"
         })
 
-        # enforce 1 per game
-        if len(final) >= len(games):
-            break
-
-    # stable ordering
-    final.sort(key=lambda x: x["game"])
-
-    return final
+    return results
