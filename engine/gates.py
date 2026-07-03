@@ -1,58 +1,40 @@
 def apply_elimination_gates(lineup, pitcher_profile):
-    """
-    BLENDER v1 TRUE GATE ENGINE
-
-    RULE:
-    - NO scoring
-    - NO ranking inside gates
-    - ONLY PASS / FAIL
-    - MUST carry gate history
-    """
 
     survivors = []
 
     for p in lineup:
 
         gate_history = []
-        alive = True
 
-        # -------------------------
-        # GATE 0 — SLOT CHECK
-        # -------------------------
         slot = p.get("slot", 9)
 
-        if slot <= 3:
-            gate_history.append("PASS Gate 0 - elite slot")
-        elif slot <= 6:
-            gate_history.append("PASS Gate 0 - mid slot")
+        # -------------------------
+        # GATE 0 — SLOT (STRICT ELIMINATION)
+        # -------------------------
+        if slot <= 5:
+            gate_history.append("PASS Gate 0")
         else:
-            gate_history.append("FAIL Gate 0 - bottom order")
-            alive = False
-
-        if not alive:
-            continue
+            continue   # HARD ELIMINATION
 
         # -------------------------
         # GATE 1 — HANDEDNESS MATCH
         # -------------------------
-        if pitcher_profile.get("weak_vs_right") and p.get("handedness") == "R":
-            gate_history.append("PASS Gate 1 - platoon advantage")
-        elif pitcher_profile.get("weak_vs_left") and p.get("handedness") == "L":
-            gate_history.append("PASS Gate 1 - platoon advantage")
-        else:
-            gate_history.append("PASS Gate 1 - neutral matchup")
+        if pitcher_profile:
+            if pitcher_profile.get("weak_vs_right") and p.get("handedness") == "R":
+                gate_history.append("PASS Gate 1")
+            elif pitcher_profile.get("weak_vs_left") and p.get("handedness") == "L":
+                gate_history.append("PASS Gate 1")
+            else:
+                gate_history.append("PASS Gate 1 neutral")
 
         # -------------------------
-        # GATE 2 — ENVIRONMENT
+        # GATE 2 — ENVIRONMENT CHECK
         # -------------------------
-        if pitcher_profile.get("park_factor", 1) > 1.05:
-            gate_history.append("PASS Gate 2 - hitter park")
-        else:
-            gate_history.append("PASS Gate 2 - neutral park")
+        if pitcher_profile.get("park_factor", 1) < 0.95:
+            continue   # ELIMINATE
 
-        # -------------------------
-        # FINAL DECISION
-        # -------------------------
+        gate_history.append("PASS Gate 2")
+
         survivors.append({
             "id": p["id"],
             "name": p.get("name", p["id"]),
