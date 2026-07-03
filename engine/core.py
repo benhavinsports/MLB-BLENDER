@@ -15,34 +15,59 @@ def run_slate(games):
         gamePk = g.get("gamePk")
         label = f"{g.get('away')} vs {g.get('home')}"
 
-        lineup = normalize_lineup(get_confirmed_lineup(gamePk))
+        # =========================
+        # LINEUP LOAD
+        # =========================
+        raw_lineup = get_confirmed_lineup(gamePk)
+        lineup = normalize_lineup(raw_lineup)
 
         if not lineup:
             continue
 
+        # =========================
+        # STARTER LOAD
+        # =========================
         starters = get_probable_starter(gamePk)
-        pitcher = starters.get("away") or starters.get("home")
+        pitcher_name = starters.get("away") or starters.get("home")
 
-        if not pitcher:
+        if not pitcher_name:
             continue
 
-        pitcher_profile = get_pitcher_profile(pitcher)
+        pitcher_profile = get_pitcher_profile(pitcher_name)
 
+        # =========================
+        # ENGINE RUN
+        # =========================
         enriched = apply_elimination_gates(lineup, pitcher_profile)
 
         if not enriched:
             continue
 
-        # SORT BY FINAL SCORE (REAL BLENDER LOGIC)
-        enriched.sort(key=lambda x: x["final_score"], reverse=True)
+        # =========================
+        # SORT BY FINAL SCORE
+        # =========================
+        enriched.sort(
+            key=lambda x: x.get("final_score", 0),
+            reverse=True
+        )
 
         winner = enriched[0]
 
+        # =========================
+        # SAFE FIELD NORMALIZATION (CRITICAL FIX)
+        # =========================
+        survivor_name = (
+            winner.get("name")
+            or get_player_name(winner.get("id"))
+            or winner.get("id")
+        )
+
         results.append({
             "game": label,
-            "survivor": winner["name"],
-            "id": winner["id"],
-            "gates": winner["gates"]
+            "survivor": survivor_name,
+            "id": winner.get("id"),
+            "gates": winner.get("gates", []),
+            "final_score": winner.get("final_score", 0)
         })
 
     return results
