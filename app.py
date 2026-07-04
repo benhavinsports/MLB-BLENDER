@@ -1,7 +1,7 @@
 import streamlit as st
 
 from engine.core import run_slate
-from engine.core3 import build_core3
+fr
 from services.slate import get_mlb_slate
 
 st.set_page_config(page_title="MLB Blender", layout="wide")
