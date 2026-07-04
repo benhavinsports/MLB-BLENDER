@@ -1,65 +1,82 @@
 import requests
+import re
 
 PLAYER_CACHE = {}
 
-def get_player_name(player_id):
+def clean_id(player_id):
+    """
+    Converts:
+    player_824659_1 → 824659
+    824659 → 824659
+    """
 
     if not player_id:
-        return "Unknown"
+        return None
 
-    if player_id in PLAYER_CACHE:
-        return PLAYER_CACHE[player_id]
+    player_id = str(player_id)
+
+    # extract numeric ID
+    match = re.search(r"(\d{4,7})", player_id)
+
+    if match:
+        return match.group(1)
+
+    return player_id
+
+
+def get_player_name(player_id):
+
+    clean = clean_id(player_id)
+
+    if not clean:
+        return None
+
+    if clean in PLAYER_CACHE:
+        return PLAYER_CACHE[clean]
 
     try:
-        url = f"https://statsapi.mlb.com/api/v1/people/{player_id}"
+        url = f"https://statsapi.mlb.com/api/v1/people/{clean}"
         data = requests.get(url, timeout=10).json()
 
         people = data.get("people", [])
 
         if not people:
-            return f"Unknown_{player_id}"
+            return None
 
-        name = people[0].get("fullName", f"Unknown_{player_id}")
+        name = people[0].get("fullName")
 
-        PLAYER_CACHE[player_id] = name
+        if name:
+            PLAYER_CACHE[clean] = name
 
         return name
 
     except:
-        return f"Unknown_{player_id}"
+        return None
 
 
 def normalize_lineup(raw_lineup, roster_map=None):
-
-    """
-    FIXED LINEUP NORMALIZER — NOW RETURNS REAL NAMES
-    """
 
     normalized = []
 
     for p in raw_lineup:
 
-        player_id = p.get("id")
+        raw_id = p.get("id")
+        player_id = clean_id(raw_id)
 
-        # 🔥 REAL FIX: resolve name HERE (not later)
+        # 🔥 FORCE NAME RESOLUTION ALWAYS
         name = p.get("name")
 
-        if not name or name == player_id:
+        if not name or str(name).startswith("player_") or name == raw_id:
             name = get_player_name(player_id)
 
-        # SLOT
-        slot = p.get("slot", 9)
+        if not name:
+            name = f"Unknown_{player_id}"
 
-        if slot is None:
-            slot = 9
+        slot = p.get("slot") or 9
 
-        # HANDEDNESS
         handedness = p.get("handedness") or "R"
+        side = p.get("side") or "home"
 
-        # SIDE
-        side = p.get("side", "home")
-
-        # ROLE
         if slot <= 2:
             role = "table_setter"
         elif slot <= 5:
@@ -69,7 +86,7 @@ def normalize_lineup(raw_lineup, roster_map=None):
 
         normalized.append({
             "id": player_id,
-            "name": name,   # 🔥 ALWAYS REAL NAME NOW
+            "name": name,
             "slot": slot,
             "handedness": handedness,
             "side": side,
