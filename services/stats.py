@@ -2,163 +2,184 @@
 
 import requests
 
-
 # ==========================================================
 # MLB HR BLENDER vFINAL
-# PLAYER STAT INJECTION LAYER
+# PLAYER CARD BUILDER
+#
+# This file creates ONE player object
+# containing everything Blender needs.
+#
+# No gates live here.
+# No eliminations.
+# Data only.
 # ==========================================================
 
 
-CACHE = {}
+def build_player_card(player):
 
+    return {
 
-
-def get_player_stats(player_id):
-
-    """
-    Returns player data for Blender.
-
-    This layer ONLY collects data.
-
-    Gates decide later.
-    """
-
-
-    if not player_id:
-        return {}
-
-
-
-    if player_id in CACHE:
-        return CACHE[player_id]
-
-
-
-    stats = {
-
-        "id": player_id,
-
+        # ----------------------------------
         # Identity
-        "name": None,
+        # ----------------------------------
 
-        # HR profile
+        "id": player.get("id"),
+
+        "name": player.get("name"),
+
+        "team": player.get("team"),
+
+        "slot": player.get("slot"),
+
+        # ----------------------------------
+        # Pull Profile
+        # ----------------------------------
+
         "pull": None,
+
         "pull_barrel": None,
+
         "pua": None,
+
         "fb": None,
 
+        # ----------------------------------
         # Damage
+        # ----------------------------------
+
         "hard_hit": None,
+
         "barrel": None,
+
         "exit_velocity": None,
+
         "blast": None,
+
         "squared_up": None,
+
         "sweet_spot": None,
+
         "bat_speed": None,
 
-        # Conversion
+        "fast_swing": None,
+
+        # ----------------------------------
+        # Production
+        # ----------------------------------
+
         "iso": None,
+
+        "slg": None,
+
+        "woba": None,
+
         "hr_pa": None,
 
-        # Matchup
+        # ----------------------------------
+        # Blender Values
+        # ----------------------------------
+
         "pitch_edge": None,
 
-        # Recent pressure
+        "condition": None,
+
         "hr_heat": False,
 
-        # Opportunity
-        "slot": 9
+        # ----------------------------------
+        # Audit
+        # ----------------------------------
+
+        "alive": True,
+
+        "gate_failed": None
 
     }
 
 
-
-    # MLB identity lookup
-
-    try:
-
-        url = (
-            f"https://statsapi.mlb.com/api/v1/people/{player_id}"
-        )
+# ==========================================================
+# PLACEHOLDER LOADERS
+#
+# Each section gets replaced with
+# live data later.
+# ==========================================================
 
 
-        response = requests.get(
-            url,
-            timeout=10
-        )
+def load_savant(player):
+
+    """
+    Baseball Savant
+
+    Hard Hit
+    Barrel
+    EV
+    Blast
+    Bat Speed
+    etc.
+    """
+
+    return player
 
 
-        data = response.json()
+def load_fangraphs(player):
+
+    """
+    ISO
+    SLG
+    WOBA
+    HR/PA
+
+    """
+
+    return player
 
 
-        people = data.get(
-            "people",
-            []
-        )
+def load_pitch_matchup(player):
+
+    """
+    Pitch Edge
+
+    Filled after pitcher
+    injection.
+
+    """
+
+    return player
 
 
-        if people:
+def load_recent_form(player):
 
-            stats["name"] = people[0].get(
-                "fullName"
-            )
+    """
 
+    Last 10 games
 
-    except Exception:
+    HR Heat
 
-        pass
+    """
 
-
-
-    CACHE[player_id] = stats
+    return player
 
 
-    return stats
-
-
+# ==========================================================
+# MASTER ATTACH
+# ==========================================================
 
 
 def attach_stats(players):
 
-    """
-    Merge player identity + stat fields
-    into lineup objects.
-    """
-
-
     output = []
 
+    for p in players:
 
+        card = build_player_card(p)
 
-    for player in players:
+        card = load_savant(card)
 
+        card = load_fangraphs(card)
 
-        stat_data = get_player_stats(
-            player.get("id")
-        )
+        card = load_pitch_matchup(card)
 
+        card = load_recent_form(card)
 
-        merged = {
-
-            **player,
-
-            **stat_data
-
-        }
-
-
-        # preserve lineup slot
-
-        if player.get("slot"):
-
-            merged["slot"] = player["slot"]
-
-
-
-        output.append(
-            merged
-        )
-
-
+        output.append(card)
 
     return output
