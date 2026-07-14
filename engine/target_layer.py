@@ -3,105 +3,148 @@
 # ==========================================================
 # MLB HR BLENDER vFINAL
 # GATE 0 — TARGET LAYER
-# PITCHER LEAK ENGINE
+#
+# Finds weakest HR resistance point.
+#
+# Does NOT select hitters.
+# Does NOT rank stars.
+#
+# Output:
+# One offense target
 # ==========================================================
 
 
-def calculate_leak_score(pitcher):
+def rank_offense_targets(games):
 
     """
-    Gate 0
+    Receives games with pitcher cards attached.
 
-    Calculates HR leak score.
-
-    Does NOT select hitters.
-
-    Only identifies where HR resistance is weakest.
-    """
-
-    hr9 = pitcher.get("hr9", 0)
-
-    barrel = pitcher.get("barrel_allowed", 0)
-
-    xwoba = pitcher.get("xwoba_allowed", 0)
-
-    hard_hit = pitcher.get("hard_hit_allowed", 0)
-
-    strikeout = pitcher.get("k_percent", 0)
-
-    predictability = pitcher.get("pitch_predictability", 0)
-
-
-    leak = (
-
-        (hr9 * 0.25)
-
-        + (barrel * 0.25)
-
-        + (xwoba * 0.20)
-
-        + (hard_hit * 0.15)
-
-        + (predictability * 0.15)
-
-        - (strikeout * 0.08)
-
-    )
-
-    return round(leak, 3)
-
-
-
-# ==========================================================
-# RANK ALL PITCHERS
-# ==========================================================
-
-def build_target_map(games):
-
-    """
-    Returns one record per game.
-
-    No hitter logic here.
+    Finds the offense facing the weaker
+    HR resistance profile.
     """
 
     targets = []
 
+
     for game in games:
 
-        away_pitcher = game.get("away_pitcher_profile", {})
 
-        home_pitcher = game.get("home_pitcher_profile", {})
+        away_pitcher = game.get(
+            "away_pitcher_card",
+            {}
+        )
 
-        away_score = calculate_leak_score(away_pitcher)
 
-        home_score = calculate_leak_score(home_pitcher)
+        home_pitcher = game.get(
+            "home_pitcher_card",
+            {}
+        )
 
-        if away_score >= home_score:
 
-            offense = game["home"]
+        away_leak = away_pitcher.get(
+            "leak_score",
+            0
+        )
 
-            pitcher = game["away_pitcher"]
 
-            leak = away_score
+        home_leak = home_pitcher.get(
+            "leak_score",
+            0
+        )
+
+
+        # Higher pitcher leak =
+        # weaker HR resistance
+
+
+        if away_leak > home_leak:
+
+
+            targets.append({
+
+                "game_id":
+                    game.get(
+                        "game_id"
+                    ),
+
+                "team":
+                    game.get(
+                        "home"
+                    ),
+
+                "pitcher":
+                    away_pitcher.get(
+                        "name"
+                    ),
+
+                "leak_score":
+                    away_leak
+
+            })
+
 
         else:
 
-            offense = game["away"]
 
-            pitcher = game["home_pitcher"]
+            targets.append({
 
-            leak = home_score
+                "game_id":
+                    game.get(
+                        "game_id"
+                    ),
 
-        targets.append({
+                "team":
+                    game.get(
+                        "away"
+                    ),
 
-            "game": f"{game['away']} vs {game['home']}",
+                "pitcher":
+                    home_pitcher.get(
+                        "name"
+                    ),
 
-            "target_offense": offense,
+                "leak_score":
+                    home_leak
 
-            "target_pitcher": pitcher,
+            })
 
-            "leak_score": leak
-
-        })
 
     return targets
+
+
+
+# ==========================================================
+# SIDE LOCK
+# ==========================================================
+
+
+def lock_side(target):
+
+
+    """
+    Gate 0 rule:
+
+    ONE offense only.
+
+    No side flipping later.
+    """
+
+
+    return {
+
+        "locked_team":
+            target.get(
+                "team"
+            ),
+
+        "target_pitcher":
+            target.get(
+                "pitcher"
+            ),
+
+        "leak_score":
+            target.get(
+                "leak_score"
+            )
+
+    }
