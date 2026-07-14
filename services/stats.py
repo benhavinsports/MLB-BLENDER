@@ -1,185 +1,344 @@
 # services/stats.py
 
-import requests
-
 # ==========================================================
 # MLB HR BLENDER vFINAL
-# PLAYER CARD BUILDER
+# HITTER STAT PROFILE ENGINE
 #
-# This file creates ONE player object
-# containing everything Blender needs.
+# Data attachment layer only.
 #
-# No gates live here.
-# No eliminations.
-# Data only.
+# No selections.
+# No rankings.
+#
+# Feeds Gates 1-18
 # ==========================================================
 
 
-def build_player_card(player):
+
+def build_hitter_profile(player, stat_data):
+
+
+    """
+    Combines player identity
+    with HR finisher metrics.
+    """
+
+
 
     return {
 
-        # ----------------------------------
-        # Identity
-        # ----------------------------------
 
-        "id": player.get("id"),
+        "id":
 
-        "name": player.get("name"),
+            player.get(
+                "id"
+            ),
 
-        "team": player.get("team"),
 
-        "slot": player.get("slot"),
+        "name":
 
-        # ----------------------------------
-        # Pull Profile
-        # ----------------------------------
+            player.get(
+                "name"
+            ),
 
-        "pull": None,
 
-        "pull_barrel": None,
+        "team":
 
-        "pua": None,
+            player.get(
+                "team"
+            ),
 
-        "fb": None,
 
-        # ----------------------------------
-        # Damage
-        # ----------------------------------
+        "slot":
 
-        "hard_hit": None,
+            player.get(
+                "slot"
+            ),
 
-        "barrel": None,
 
-        "exit_velocity": None,
 
-        "blast": None,
+        # ======================
+        # HR MECHANICS
+        # ======================
 
-        "squared_up": None,
 
-        "sweet_spot": None,
+        "pull":
 
-        "bat_speed": None,
+            stat_data.get(
+                "pull"
+            ),
 
-        "fast_swing": None,
 
-        # ----------------------------------
-        # Production
-        # ----------------------------------
+        "hard_hit":
 
-        "iso": None,
+            stat_data.get(
+                "hard_hit"
+            ),
 
-        "slg": None,
 
-        "woba": None,
+        "barrel":
 
-        "hr_pa": None,
+            stat_data.get(
+                "barrel"
+            ),
 
-        # ----------------------------------
-        # Blender Values
-        # ----------------------------------
 
-        "pitch_edge": None,
+        "ev":
 
-        "condition": None,
+            stat_data.get(
+                "ev"
+            ),
 
-        "hr_heat": False,
 
-        # ----------------------------------
-        # Audit
-        # ----------------------------------
+        "fb":
 
-        "alive": True,
+            stat_data.get(
+                "fb"
+            ),
 
-        "gate_failed": None
+
+        "pua":
+
+            stat_data.get(
+                "pua"
+            ),
+
+
+        "pull_barrel":
+
+            stat_data.get(
+                "pull_barrel"
+            ),
+
+
+
+        # ======================
+        # CONTACT QUALITY
+        # ======================
+
+
+        "blast":
+
+            stat_data.get(
+                "blast"
+            ),
+
+
+        "squared_up":
+
+            stat_data.get(
+                "squared_up"
+            ),
+
+
+        "sweet_spot":
+
+            stat_data.get(
+                "sweet_spot"
+            ),
+
+
+
+        # ======================
+        # SWING PROFILE
+        # ======================
+
+
+        "bat_speed":
+
+            stat_data.get(
+                "bat_speed"
+            ),
+
+
+        "fast_swing":
+
+            stat_data.get(
+                "fast_swing"
+            ),
+
+
+
+        # ======================
+        # HR CONVERSION
+        # ======================
+
+
+        "iso":
+
+            stat_data.get(
+                "iso"
+            ),
+
+
+        "slg":
+
+            stat_data.get(
+                "slg"
+            ),
+
+
+        "woba":
+
+            stat_data.get(
+                "woba"
+            ),
+
+
+        "hr_pa":
+
+            stat_data.get(
+                "hr_pa"
+            )
 
     }
 
 
+
+
 # ==========================================================
-# PLACEHOLDER LOADERS
-#
-# Each section gets replaced with
-# live data later.
+# HR FINISHER CHECK
 # ==========================================================
 
 
-def load_savant(player):
+def finisher_profile(player):
+
 
     """
-    Baseball Savant
+    Gate 15 / HR Finisher Identity
 
-    Hard Hit
-    Barrel
+    Must meet:
+
+    HR/PA >= .05
+    ISO >= .200
+    FB >= 30
+
+    """
+
+
+
+    hr_pa = player.get(
+        "hr_pa"
+    )
+
+
+    iso = player.get(
+        "iso"
+    )
+
+
+    fb = player.get(
+        "fb"
+    )
+
+
+
+    if (
+
+        hr_pa is not None
+
+        and iso is not None
+
+        and fb is not None
+
+    ):
+
+
+        if (
+
+            hr_pa >= .05
+
+            and iso >= .200
+
+            and fb >= 30
+
+        ):
+
+            return True
+
+
+
+    # undefined data does not kill
+
+    return True
+
+
+
+
+# ==========================================================
+# DAMAGE SCORE
+# ==========================================================
+
+
+def damage_score(player):
+
+
+    """
+
+    Gate 6 support
+
+    Uses:
+
+    HH
     EV
+    Barrel
     Blast
-    Bat Speed
-    etc.
-    """
-
-    return player
-
-
-def load_fangraphs(player):
-
-    """
-    ISO
-    SLG
-    WOBA
-    HR/PA
+    Squared Up
 
     """
 
-    return player
+
+    hh = player.get(
+        "hard_hit",
+        0
+    )
 
 
-def load_pitch_matchup(player):
-
-    """
-    Pitch Edge
-
-    Filled after pitcher
-    injection.
-
-    """
-
-    return player
+    ev = player.get(
+        "ev",
+        0
+    )
 
 
-def load_recent_form(player):
-
-    """
-
-    Last 10 games
-
-    HR Heat
-
-    """
-
-    return player
+    barrel = player.get(
+        "barrel",
+        0
+    )
 
 
-# ==========================================================
-# MASTER ATTACH
-# ==========================================================
+    blast = player.get(
+        "blast",
+        0
+    )
 
 
-def attach_stats(players):
+    squared = player.get(
+        "squared_up",
+        0
+    )
 
-    output = []
 
-    for p in players:
 
-        card = build_player_card(p)
+    return round(
 
-        card = load_savant(card)
+        (hh * .35)
 
-        card = load_fangraphs(card)
+        +
 
-        card = load_pitch_matchup(card)
+        (ev * .20)
 
-        card = load_recent_form(card)
+        +
 
-        output.append(card)
+        (barrel * .20)
 
-    return output
+        +
+
+        (blast * .15)
+
+        +
+
+        (squared * .10),
+
+
+        3
+
+    )
