@@ -2,141 +2,163 @@
 
 import requests
 
+
 # ==========================================================
 # MLB HR BLENDER vFINAL
-# MASTER PLAYER DATA LAYER
+# PLAYER STAT INJECTION LAYER
 # ==========================================================
+
 
 CACHE = {}
 
-MLB_API = "https://statsapi.mlb.com/api/v1/people"
 
 
 def get_player_stats(player_id):
 
     """
-    Returns ONE standardized player profile.
+    Returns player data for Blender.
 
-    Every gate reads from this.
+    This layer ONLY collects data.
 
-    Never rename these keys.
+    Gates decide later.
     """
+
 
     if not player_id:
         return {}
 
+
+
     if player_id in CACHE:
         return CACHE[player_id]
+
+
+
+    stats = {
+
+        "id": player_id,
+
+        # Identity
+        "name": None,
+
+        # HR profile
+        "pull": None,
+        "pull_barrel": None,
+        "pua": None,
+        "fb": None,
+
+        # Damage
+        "hard_hit": None,
+        "barrel": None,
+        "exit_velocity": None,
+        "blast": None,
+        "squared_up": None,
+        "sweet_spot": None,
+        "bat_speed": None,
+
+        # Conversion
+        "iso": None,
+        "hr_pa": None,
+
+        # Matchup
+        "pitch_edge": None,
+
+        # Recent pressure
+        "hr_heat": False,
+
+        # Opportunity
+        "slot": 9
+
+    }
+
+
+
+    # MLB identity lookup
 
     try:
 
         url = (
-            f"{MLB_API}/{player_id}"
-            "?hydrate=stats(group=[hitting,pitching],type=[season])"
+            f"https://statsapi.mlb.com/api/v1/people/{player_id}"
         )
 
-        data = requests.get(
+
+        response = requests.get(
             url,
             timeout=10
-        ).json()
+        )
+
+
+        data = response.json()
+
+
+        people = data.get(
+            "people",
+            []
+        )
+
+
+        if people:
+
+            stats["name"] = people[0].get(
+                "fullName"
+            )
+
 
     except Exception:
 
-        return {}
-
-    people = data.get(
-        "people",
-        []
-    )
-
-    if not people:
-        return {}
-
-    person = people[0]
-
-    profile = {
-
-        # -------------------------
-        # Identity
-        # -------------------------
-
-        "id": player_id,
-
-        "name":
-            person.get(
-                "fullName",
-                "UNKNOWN"
-            ),
-
-        # -------------------------
-        # Gate Inputs
-        # -------------------------
-
-        "pull": None,
-
-        "hard_hit": None,
-
-        "barrel": None,
-
-        "exit_velocity": None,
-
-        "blast": None,
-
-        "squared_up": None,
-
-        "sweet_spot": None,
-
-        "bat_speed": None,
-
-        "pitch_edge": None,
-
-        "cond": None,
-
-        "hr_heat": None,
-
-        "hr_pa": None,
-
-        "iso": None,
-
-        "slg": None,
-
-        "woba": None,
-
-        "fb": None,
-
-        "pull_barrel": None,
-
-        "pua": None,
-
-        "fast_swing": None
-
-    }
-
-    CACHE[player_id] = profile
-
-    return profile
+        pass
 
 
-# ==========================================================
-# ATTACH TO LINEUP
-# ==========================================================
+
+    CACHE[player_id] = stats
+
+
+    return stats
+
+
+
 
 def attach_stats(players):
 
-    enriched = []
+    """
+    Merge player identity + stat fields
+    into lineup objects.
+    """
+
+
+    output = []
+
+
 
     for player in players:
 
-        stats = get_player_stats(
-            player["id"]
+
+        stat_data = get_player_stats(
+            player.get("id")
         )
 
-        enriched.append({
+
+        merged = {
 
             **player,
 
-            **stats
+            **stat_data
 
-        })
+        }
 
-    return enriched
+
+        # preserve lineup slot
+
+        if player.get("slot"):
+
+            merged["slot"] = player["slot"]
+
+
+
+        output.append(
+            merged
+        )
+
+
+
+    return output
