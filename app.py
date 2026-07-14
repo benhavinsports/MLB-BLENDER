@@ -138,7 +138,9 @@ st.subheader(
 )
 
 
-core3 = results[:3]
+from services.output import build_core3
+
+core3 = build_core3(results)
 
 
 for i, player in enumerate(core3, 1):
