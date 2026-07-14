@@ -2,203 +2,219 @@
 
 # ==========================================================
 # MLB HR BLENDER vFINAL
-# GATE 10.5 — DECOY TRANSFER ENGINE
+# GATE 10.5 / GATE 16
+# DECOY TRANSFER ENGINE
 #
-# Prevents star/chalk bias.
+# Purpose:
+# Detect false chalk and transfer HR ownership.
 #
-# Does not create picks.
-# Only modifies ownership priority.
 # ==========================================================
 
 
 
-def detect_decoy(player):
+def transfer_event(
+    survivors
+):
+
 
     """
-    Flags obvious public profiles.
-    """
+    Checks if event should transfer.
 
-    flags = []
+    Conditions:
 
+    - Multiple survivors
+    - Similar event profile
+    - Chalk risk present
 
-    if player.get(
-        "hr_total",
-        0
-    ) >= 30:
-
-        flags.append(
-            "HIGH_HR_PROFILE"
-        )
-
-
-    if player.get(
-        "public_rating",
-        0
-    ) >= 90:
-
-        flags.append(
-            "PUBLIC_CHALK"
-        )
-
-
-    if player.get(
-        "star_flag",
-        False
-    ):
-
-        flags.append(
-            "STAR_PROFILE"
-        )
-
-
-    return flags
-
-
-
-
-# ==========================================================
-# EVENT GAP CHECK
-# ==========================================================
-
-
-def close_event_gap(players):
-
-    """
-    Checks if survivors are close.
-
-    Transfer only activates when
-    multiple real survivors exist.
     """
 
 
-    if len(players) < 2:
 
-        return False
+    if not survivors:
 
-
-
-    scores = []
+        return []
 
 
-    for p in players:
 
-        scores.append(
+    if len(survivors) < 2:
 
-            p.get(
-                "gate_score",
+        return survivors
+
+
+
+    # Sort only for comparison
+    # NOT final ranking
+
+
+    ordered = sorted(
+
+        survivors,
+
+        key=lambda x:
+
+            x.get(
+                "ownership_score",
                 0
-            )
+            ),
 
-        )
-
-
-
-    scores.sort(
         reverse=True
+
     )
 
 
-    difference = (
-        scores[0]
+    top = ordered[0]
+
+    second = ordered[1]
+
+
+
+    gap = abs(
+
+        top.get(
+            "ownership_score",
+            0
+        )
+
         -
-        scores[1]
+
+        second.get(
+            "ownership_score",
+            0
+        )
+
     )
 
 
-    if difference <= 10:
 
-        return True
-
-
-    return False
+    # ======================================================
+    # TRANSFER CONDITION
+    # ======================================================
 
 
+    if gap <= 10:
 
 
-# ==========================================================
-# TRANSFER ENGINE
-# ==========================================================
+        second["transfer_flag"] = True
 
 
-def transfer_event(players):
+        second["event_reason"] = (
 
-    """
+            "Transferred event ownership "
 
-    If decoy risk exists:
+            "through decoy layer"
 
-    Move event ownership toward:
-
-    - adjacent hitter
-    - protection hitter
-    - pressure release hitter
-
-
-    """
-
-
-    if not close_event_gap(
-        players
-    ):
-
-        return players
-
-
-
-    for player in players:
-
-
-        risk = detect_decoy(
-            player
         )
 
 
-        if risk:
-
-
-            player["decoy_risk"] = True
-
-
-        else:
-
-
-            player["decoy_risk"] = False
+        return [second]
 
 
 
-    return players
+    return [top]
+
 
 
 
 
 # ==========================================================
-# FINAL DECOY FILTER
+# FALSE CHALK REMOVAL
 # ==========================================================
 
 
-def remove_false_chalk(players):
+def remove_false_chalk(
+    survivors
+):
 
 
-    survivors = []
+    """
+    Removes obvious profiles if:
+
+    - weak ownership
+    - only reputation support
+    - no event mechanics
+
+    """
 
 
-    for player in players:
+
+    clean = []
 
 
-        if player.get(
-            "decoy_risk",
-            False
+
+    for hitter in survivors:
+
+
+
+        damage = hitter.get(
+
+            "damage_score",
+
+            0
+
+        )
+
+
+        pull = hitter.get(
+
+            "pull"
+
+        )
+
+
+
+        hh = hitter.get(
+
+            "hard_hit"
+
+        )
+
+
+
+        # Undefined data passes
+
+
+        if (
+
+            damage == 0
+
+            or
+
+            pull is None
+
+            or
+
+            hh is None
+
         ):
 
-            # keep alive but reduce priority
 
-            player["gate_score"] -= 5
+            clean.append(
+                hitter
+            )
+
+            continue
 
 
 
-        survivors.append(
-            player
+        if (
+
+            pull < 55
+
+            and
+
+            hh < 45
+
+        ):
+
+
+            continue
+
+
+
+        clean.append(
+            hitter
         )
 
 
 
-    return survivors
+    return clean
