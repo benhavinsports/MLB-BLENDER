@@ -1,6 +1,7 @@
 # engine/core.py
 
 from services.lineup import get_game_lineup
+from services.stats import attach_stats
 
 
 # ==========================================================
@@ -15,16 +16,16 @@ def run_blender(games):
 
     for game in games:
 
-        result = process_game(game)
-
-        results.append(result)
+        results.append(
+            process_game(game)
+        )
 
     return results
 
 
 
 # ==========================================================
-# PROCESS SINGLE GAME
+# SINGLE GAME PROCESS
 # ==========================================================
 
 
@@ -43,55 +44,73 @@ def process_game(game):
 
 
     audit.append({
-
-        "stage":
-            "LINEUP",
-
-        "hitters_loaded":
-            len(hitters)
-
+        "step": "LINEUP LOAD",
+        "count": len(hitters)
     })
+
+
+
+    # -------------------------
+    # ATTACH PLAYER DATA
+    # -------------------------
+
+    hitters = attach_stats(
+        hitters
+    )
+
+
+    audit.append({
+        "step": "STATS ATTACHED",
+        "count": len(hitters)
+    })
+
 
 
     # -------------------------
     # GATE 0
     # -------------------------
 
-    audit.append(
-        gate_0_target_layer(game)
-    )
+    audit.append({
+
+        "gate": 0,
+
+        "target":
+            game.get("away")
+            + " offense"
+
+    })
 
 
-    # -------------------------
-    # GATE PIPELINE
-    # -------------------------
 
     survivors = hitters
 
 
+
+    # -------------------------
+    # GATES 1-18
+    # -------------------------
+
     gates = [
 
-        gate_1_environment,
+        gate_1_pull,
 
-        gate_2_pool_build,
+        gate_2_damage,
 
-        gate_3_pull,
+        gate_3_combined_trigger,
 
-        gate_4_damage,
+        gate_4_condition,
 
-        gate_5_pitch_matchup,
+        gate_5_pitch_edge,
 
-        gate_6_slot_weakness,
+        gate_6_hr_heat,
 
-        gate_7_rhythm,
+        gate_7_finisher_profile,
 
-        gate_8_conversion,
+        gate_8_opportunity,
 
-        gate_9_environment_check,
+        gate_9_environment,
 
-        gate_10_opportunity,
-
-        gate_10_5_decoy,
+        gate_10_decoy,
 
         gate_11_bullpen,
 
@@ -101,24 +120,48 @@ def process_game(game):
 
         gate_14_protection,
 
-        gate_15_finisher
+        gate_15_finisher,
+
+        gate_16_last_man,
+
+        gate_17_audit,
+
+        gate_18_lock
 
     ]
 
 
-    for gate in gates:
 
-        survivors = apply_gate(
-            survivors,
-            gate,
-            audit
-        )
+    for number, gate in enumerate(gates, 1):
+
+        before = len(survivors)
 
 
+        survivors = [
+            p for p in survivors
+            if gate(p)
+        ]
 
-    survivor = final_lock(
+
+        audit.append({
+
+            "gate":
+                number,
+
+            "before":
+                before,
+
+            "after":
+                len(survivors)
+
+        })
+
+
+
+    final = choose_survivor(
         survivors
     )
+
 
 
     return {
@@ -126,182 +169,155 @@ def process_game(game):
         "game":
             f"{game['away']} vs {game['home']}",
 
-
         "survivor":
-            survivor,
-
-
-        "status":
-            "LOCKED",
-
+            final,
 
         "audit":
-            audit
+            audit,
+
+        "status":
+            "LOCKED"
 
     }
 
 
 
-
 # ==========================================================
-# GATE RUNNER
-# ==========================================================
-
-
-def apply_gate(players, gate, audit):
-
-    before = len(players)
-
-
-    after_players = []
-
-
-    for player in players:
-
-        if gate(player):
-
-            after_players.append(player)
-
-
-
-    audit.append({
-
-        "gate":
-            gate.__name__,
-
-        "before":
-            before,
-
-        "after":
-            len(after_players)
-
-    })
-
-
-    return after_players
-
-
-
-
-# ==========================================================
-# GATES
+# GATE FUNCTIONS
 # ==========================================================
 
 
-def gate_0_target_layer(game):
+def gate_1_pull(p):
 
-    return {
+    pull = p.get("pull")
 
-        "gate":0,
-
-        "status":"PASS"
-
-    }
-
-
-
-def gate_1_environment(player):
-    return True
-
-
-
-def gate_2_pool_build(player):
-    return True
-
-
-
-def gate_3_pull(player):
-
-    pull = player.get(
-        "pull",
-        65
-    )
+    if pull is None:
+        return True
 
     return pull >= 50
 
 
 
-def gate_4_damage(player):
+def gate_2_damage(p):
 
-    hh = player.get(
-        "hard_hit",
-        45
-    )
+    hh = p.get("hard_hit")
+
+    if hh is None:
+        return True
 
     return hh >= 40
 
 
 
-def gate_5_pitch_matchup(player):
+def gate_3_combined_trigger(p):
+
+    pull = p.get("pull")
+
+    hh = p.get("hard_hit")
+
+
+    if pull is None or hh is None:
+        return True
+
+
+    return (
+        pull >= 65
+        and hh >= 40
+    )
+
+
+
+def gate_4_condition(p):
     return True
 
 
 
-def gate_6_slot_weakness(player):
+def gate_5_pitch_edge(p):
+
+    edge = p.get(
+        "pitch_edge"
+    )
+
+    if edge is None:
+        return True
+
+    return edge >= 0
+
+
+
+def gate_6_hr_heat(p):
     return True
 
 
 
-def gate_7_rhythm(player):
+def gate_7_finisher_profile(p):
     return True
 
 
 
-def gate_8_conversion(player):
+def gate_8_opportunity(p):
     return True
 
 
 
-def gate_9_environment_check(player):
+def gate_9_environment(p):
     return True
 
 
 
-def gate_10_opportunity(player):
+def gate_10_decoy(p):
     return True
 
 
 
-def gate_10_5_decoy(player):
+def gate_11_bullpen(p):
     return True
 
 
 
-def gate_11_bullpen(player):
+def gate_12_event_owner(p):
     return True
 
 
 
-def gate_12_event_owner(player):
+def gate_13_numerology(p):
     return True
 
 
 
-def gate_13_numerology(player):
+def gate_14_protection(p):
     return True
 
 
 
-def gate_14_protection(player):
+def gate_15_finisher(p):
     return True
 
 
 
-def gate_15_finisher(player):
+def gate_16_last_man(p):
     return True
 
+
+
+def gate_17_audit(p):
+    return True
+
+
+
+def gate_18_lock(p):
+    return True
 
 
 
 # ==========================================================
-# FINAL LOCK
+# FINAL OUTPUT
 # ==========================================================
 
 
-def final_lock(players):
+def choose_survivor(players):
 
     if not players:
-
         return "NO SURVIVOR"
 
 
