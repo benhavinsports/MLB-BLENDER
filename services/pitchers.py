@@ -17,6 +17,43 @@
 
 def build_pitcher_card(pitcher):
 
+
+    """
+    Builds pitcher vulnerability card.
+
+    Accepts:
+    - dict pitcher profile
+    - pitcher name string from MLB slate
+
+    """
+
+
+
+    if isinstance(
+        pitcher,
+        str
+    ):
+
+        pitcher = {
+
+            "name": pitcher,
+
+            "hr9": 0,
+
+            "barrel_allowed": 0,
+
+            "xwoba_allowed": 0,
+
+            "hard_hit_allowed": 0,
+
+            "k_percent": 0,
+
+            "pitch_predictability": 0,
+
+            "platoon_weakness": "UNKNOWN"
+
+        }
+
     """
     Creates standardized pitcher weakness profile.
 
