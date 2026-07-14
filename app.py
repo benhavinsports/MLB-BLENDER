@@ -2,6 +2,7 @@ import streamlit as st
 
 from services.slate import get_mlb_slate
 from engine.core import run_blender
+from services.output import build_core3
 
 
 # ==========================================================
@@ -9,53 +10,28 @@ from engine.core import run_blender
 # MAIN APPLICATION
 # ==========================================================
 
-
 st.set_page_config(
     page_title="MLB HR Blender",
     layout="wide"
 )
 
-
-st.title(
-    "⚾ MLB HR BLENDER vFINAL"
-)
-
-
-st.write(
-    "True Event Engine — Gate 0-18"
-)
-
+st.title("⚾ MLB HR BLENDER vFINAL")
+st.write("True Event Engine — Gates 0–18")
 
 
 # ==========================================================
-# LOAD SLATE
+# LOAD MLB SLATE
 # ==========================================================
 
-
-st.subheader(
-    "📅 MLB SLATE"
-)
-
+st.subheader("📅 Today's Slate")
 
 games = get_mlb_slate()
 
-
-
 if not games:
-
-    st.error(
-        "NO GAMES LOADED"
-    )
-
+    st.error("No games loaded.")
     st.stop()
 
-
-
-st.success(
-    f"{len(games)} games loaded"
-)
-
-
+st.success(f"{len(games)} games loaded.")
 
 for game in games:
 
@@ -64,87 +40,59 @@ for game in games:
     )
 
 
-
 # ==========================================================
 # RUN BLENDER
 # ==========================================================
 
+st.subheader("🔥 Running Blender")
 
-st.subheader(
-    "🔥 RUNNING BLENDER"
-)
-
-
-
-results = run_blender(
-    games
-)
-
-
+results = run_blender(games)
 
 if not results:
-
-    st.error(
-        "NO BLENDER RESULTS"
-    )
-
+    st.error("No Blender results.")
     st.stop()
 
 
-
 # ==========================================================
-# OUTPUT
+# GAME RESULTS
 # ==========================================================
 
-
-st.subheader(
-    "🏆 FINAL HR SURVIVORS"
-)
-
-
+st.subheader("🏆 Final Survivor Per Game")
 
 for result in results:
 
-    st.markdown(
-        "---"
-    )
+    st.markdown("---")
 
     st.write(
         "GAME:",
         result["game"]
     )
 
-
     st.write(
         "FINAL SURVIVOR:",
         result["survivor"]
     )
 
-
     st.write(
         "STATUS:",
-        "LOCKED"
+        result["status"]
     )
-
 
 
 # ==========================================================
 # CORE 3
 # ==========================================================
 
-
-st.subheader(
-    "🔥 CORE 3"
-)
-
-
-from services.output import build_core3
+st.subheader("🔥 CORE 3")
 
 core3 = build_core3(results)
 
-
-for i, player in enumerate(core3, 1):
+for i, player in enumerate(core3, start=1):
 
     st.write(
-        f"{i}. {player['survivor']}"
+        f"{i}. {player['player']}"
+    )
+
+    st.caption(
+        player["game"]
     )
