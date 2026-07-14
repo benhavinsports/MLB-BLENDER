@@ -4,177 +4,183 @@
 # MLB HR BLENDER vFINAL
 # GATE 12 — EVENT OWNERSHIP ENGINE
 #
-# Determines the most likely HR event recipient.
+# Determines HR event recipient.
 #
-# NOT:
-# - best hitter
-# - biggest name
-# - highest HR total
+# No star bias.
+# No reputation weighting.
 #
-# ONLY:
-# Who owns the mistake pitch?
 # ==========================================================
 
 
 
-def calculate_ownership_score(player):
-
-    """
-    Ownership combines:
-
-    Pitch matchup
-    Weak slot match
-    Hitter archetype
-    HR model
-    Gate survival
-
-    Alignment =
-    Pitcher Weakness
-    + Weak Slot Match
-    + Hitter Archetype
-    + HR Model
-    + Gate Score
-
-    """
-
-    pitcher_weakness = player.get(
-        "pitcher_weakness_match",
-        0
-    )
-
-
-    weak_slot = player.get(
-        "slot_match",
-        0
-    )
-
-
-    archetype = player.get(
-        "archetype_score",
-        0
-    )
-
-
-    hr_model = player.get(
-        "hr_model_score",
-        0
-    )
-
-
-    gate_score = player.get(
-        "gate_score",
-        0
-    )
-
-
-    ownership = (
-
-        pitcher_weakness * .30
-
-        +
-
-        weak_slot * .25
-
-        +
-
-        archetype * .20
-
-        +
-
-        hr_model * .15
-
-        +
-
-        gate_score * .10
-
-    )
-
-
-    return round(
-        ownership,
-        3
-    )
-
-
-
-
-# ==========================================================
-# OWNERSHIP BUILD
-# ==========================================================
-
-
-def assign_event_ownership(players):
+def assign_event_ownership(
+    survivors
+):
 
 
     """
+    Adds ownership score.
 
-    Every survivor receives
-    an event ownership score.
+    Survivors already passed gates.
 
-    No ranking changes after
-    Final Isolation.
-
+    This does NOT create survivors.
+    It only measures event ownership.
     """
 
 
-    output = []
+
+    for hitter in survivors:
 
 
-    for player in players:
+        score = 0
 
 
-        player["ownership_score"] = (
-            calculate_ownership_score(
-                player
+
+        # ==================================================
+        # DAMAGE PRESSURE
+        # ==================================================
+
+
+        score += (
+
+            hitter.get(
+                "damage_score",
+                0
             )
+
+            *
+
+            0.35
+
         )
 
 
-        output.append(
-            player
+
+        # ==================================================
+        # PULL PATH
+        # ==================================================
+
+
+        pull = hitter.get(
+            "pull"
         )
 
 
-    return output
+        if pull is not None:
+
+
+            score += (
+
+                pull
+
+                *
+
+                0.25
+
+            )
+
+
+
+        # ==================================================
+        # HARD HIT QUALITY
+        # ==================================================
+
+
+        hh = hitter.get(
+            "hard_hit"
+        )
+
+
+        if hh is not None:
+
+
+            score += (
+
+                hh
+
+                *
+
+                0.20
+
+            )
+
+
+
+        # ==================================================
+        # LINEUP ACCESS
+        # ==================================================
+
+
+        slot = hitter.get(
+            "slot",
+            9
+        )
+
+
+        if slot <= 5:
+
+
+            score += 10
+
+
+
+        hitter["ownership_score"] = round(
+
+            score,
+
+            3
+
+        )
+
+
+
+        hitter["event_reason"] = (
+
+            "HR event ownership: "
+
+            "damage + pull path + opportunity"
+
+        )
+
+
+
+    return survivors
+
 
 
 
 
 # ==========================================================
-# FINAL OWNERSHIP CHECK
+# GET FINAL EVENT OWNER
 # ==========================================================
 
 
-def get_owner(players):
+def get_owner(
+    survivors
+):
 
 
-    """
-
-    Returns the player with
-    strongest HR event ownership.
-
-    No name bias.
-
-    """
-
-
-    if not players:
+    if not survivors:
 
         return None
 
 
 
-    owner = max(
+    owner = sorted(
 
-        players,
+        survivors,
 
         key=lambda x:
+
             x.get(
                 "ownership_score",
                 0
-            )
+            ),
 
-    )
+        reverse=True
+
+    )[0]
+
 
 
     return owner
