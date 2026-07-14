@@ -51,8 +51,7 @@ from services.stats import (
 )
 
 from services.pitchers import (
-    build_pitcher_card,
-    rank_pitchers
+    build_pitcher_card
 )
 
 from services.environment import (
@@ -68,11 +67,10 @@ from services.bullpen import (
 # GAME PREPARATION
 # ==========================================================
 
-
 def prepare_game(game):
 
     """
-    Builds all supporting layers.
+    Builds supporting data layers.
 
     No picks happen here.
     Data only.
@@ -85,7 +83,9 @@ def prepare_game(game):
     )
 
 
+    # --------------------------
     # Pitcher cards
+    # --------------------------
 
     pitchers = []
 
@@ -93,43 +93,58 @@ def prepare_game(game):
     if game.get("away_pitcher"):
 
         pitchers.append(
+
             build_pitcher_card(
                 game["away_pitcher"]
             )
+
         )
 
 
     if game.get("home_pitcher"):
 
         pitchers.append(
+
             build_pitcher_card(
                 game["home_pitcher"]
             )
+
         )
 
 
     game["pitchers"] = pitchers
 
 
+
+    # --------------------------
     # Bullpens
+    # --------------------------
 
     game["away_bullpen"] = (
+
         build_bullpen_card(
+
             game.get(
                 "away_bullpen",
                 {}
             )
+
         )
+
     )
 
 
     game["home_bullpen"] = (
+
         build_bullpen_card(
+
             game.get(
                 "home_bullpen",
                 {}
             )
+
         )
+
     )
 
 
@@ -141,14 +156,15 @@ def prepare_game(game):
 # MAIN BLENDER ENGINE
 # ==========================================================
 
-
 def run_blender(games):
 
 
     results = []
 
 
+
     for raw_game in games:
+
 
 
         game = prepare_game(
@@ -156,11 +172,11 @@ def run_blender(games):
         )
 
 
+
         # ==================================================
         # GATE 0
         # TARGET LAYER
         # ==================================================
-
 
         targets = rank_offense_targets(
             [game]
@@ -172,6 +188,7 @@ def run_blender(games):
             continue
 
 
+
         locked_side = lock_side(
             targets[0]
         )
@@ -179,10 +196,9 @@ def run_blender(games):
 
 
         # ==================================================
-        # GATE 1-2
-        # BUILD HITTER POOL
+        # GATE 2
+        # CONFIRMED HITTER POOL
         # ==================================================
-
 
         hitters = build_game_pool(
             game
@@ -207,7 +223,7 @@ def run_blender(games):
                     "NO SURVIVOR",
 
                 "why":
-                    "NO CONFIRMED HITTERN POOL",
+                    "NO CONFIRMED HITTER POOL",
 
                 "status":
                     "FAILED"
@@ -223,11 +239,14 @@ def run_blender(games):
         # GATE 1-18
         # ==================================================
 
-
         survivors, audit = run_all_gates(
+
             hitters,
+
             game,
+
             locked_side
+
         )
 
 
@@ -264,7 +283,6 @@ def run_blender(games):
         # DECOY TRANSFER
         # ==================================================
 
-
         survivors = transfer_event(
             survivors
         )
@@ -280,7 +298,6 @@ def run_blender(games):
         # GATE 12
         # EVENT OWNERSHIP
         # ==================================================
-
 
         survivors = assign_event_ownership(
             survivors
@@ -298,18 +315,40 @@ def run_blender(games):
         # FINAL LOCK
         # ==================================================
 
+        if owner:
 
-        final = final_lock(
 
-            game,
+            final = final_lock(
 
-            [owner]
+                game,
 
-        )
+                [owner]
+
+            )
+
+
+        else:
+
+
+            final = {
+
+                "game":
+                    f"{game['away']} vs {game['home']}",
+
+                "survivor":
+                    "NO SURVIVOR",
+
+                "why":
+                    "NO EVENT OWNER",
+
+                "status":
+                    "FAILED"
+
+            }
+
 
 
         final["audit"] = audit
-
 
         final["target_side"] = locked_side
 
