@@ -3,11 +3,18 @@
 import requests
 
 
+# ==========================================================
+# MLB HR BLENDER vFINAL
+# PLAYER IDENTITY LAYER
+# ==========================================================
+
+
 PLAYER_CACHE = {}
 
 
-MLB_PLAYER_URL = (
-    "https://statsapi.mlb.com/api/v1/people/"
+
+MLB_PERSON_URL = (
+    "https://statsapi.mlb.com/api/v1/people"
 )
 
 
@@ -15,30 +22,35 @@ MLB_PLAYER_URL = (
 def get_player_name(player_id):
 
     """
-    Converts MLB player ID
-    into real name.
+    Converts MLB ID -> real player name.
 
-    Example:
-
-    592450
-       ↓
-    Juan Soto
-
+    Identity only.
+    No stats.
+    No gates.
     """
 
+
+
     if not player_id:
+
         return "UNKNOWN"
 
 
+
     if player_id in PLAYER_CACHE:
+
         return PLAYER_CACHE[player_id]
+
 
 
     try:
 
         response = requests.get(
-            f"{MLB_PLAYER_URL}{player_id}",
+
+            f"{MLB_PERSON_URL}/{player_id}",
+
             timeout=10
+
         )
 
 
@@ -51,45 +63,38 @@ def get_player_name(player_id):
         )
 
 
-        if not people:
+        if people:
 
-            return f"UNKNOWN_{player_id}"
-
-
-        name = people[0].get(
-            "fullName"
-        )
+            name = people[0].get(
+                "fullName"
+            )
 
 
-        if not name:
+            if name:
 
-            name = f"UNKNOWN_{player_id}"
+                PLAYER_CACHE[player_id] = name
 
+                return name
 
-        PLAYER_CACHE[player_id] = name
-
-
-        return name
 
 
     except Exception:
 
-        return f"UNKNOWN_{player_id}"
+        pass
 
 
 
-def resolve_player(player):
+    return "UNKNOWN"
+
+
+
+
+def attach_identity(player):
 
     """
-    Takes any hitter object.
-
-    Forces name field.
-
+    Guarantees every player object
+    has a display name.
     """
-
-    if player.get("name"):
-
-        return player
 
 
     player_id = player.get(
@@ -97,9 +102,34 @@ def resolve_player(player):
     )
 
 
-    player["name"] = get_player_name(
-        player_id
-    )
+    if not player.get("name"):
+
+        player["name"] = get_player_name(
+            player_id
+        )
 
 
     return player
+
+
+
+
+def normalize_players(players):
+
+    """
+    Final identity cleanup before Blender.
+    """
+
+
+    cleaned = []
+
+
+    for player in players:
+
+
+        cleaned.append(
+            attach_identity(player)
+        )
+
+
+    return cleaned
