@@ -5,8 +5,8 @@ from datetime import datetime
 
 
 # ==========================================================
-# MLB SLATE LOADER
-# REAL GAME INJECTION LAYER
+# MLB HR BLENDER vFINAL
+# SLATE LOADER
 # ==========================================================
 
 
@@ -19,32 +19,30 @@ MLB_SCHEDULE_URL = (
 def get_mlb_slate(date=None):
 
     """
-    Loads today's MLB games.
+    REAL MLB SLATE INJECTION
 
     Returns:
 
     [
         {
-            "game_id": "...",
-            "away": "...",
-            "home": "...",
-            "away_id": "...",
-            "home_id": "...",
-            "status": "scheduled"
+            game_id,
+            away,
+            home,
+            away_id,
+            home_id,
+            away_pitcher,
+            home_pitcher
         }
     ]
 
-    Blender consumes this.
+    Blender does not make decisions here.
     """
 
 
-
     if date is None:
-
         date = datetime.now().strftime(
             "%Y-%m-%d"
         )
-
 
 
     params = {
@@ -59,9 +57,7 @@ def get_mlb_slate(date=None):
     }
 
 
-
     try:
-
 
         response = requests.get(
             MLB_SCHEDULE_URL,
@@ -69,13 +65,10 @@ def get_mlb_slate(date=None):
             timeout=10
         )
 
-
         data = response.json()
 
 
-
     except Exception as e:
-
 
         print(
             "SLATE LOAD ERROR:",
@@ -89,28 +82,15 @@ def get_mlb_slate(date=None):
     games = []
 
 
-
-    dates = data.get(
+    for day in data.get(
         "dates",
         []
-    )
-
-
-
-    if not dates:
-
-        return []
-
-
-
-    for day in dates:
-
+    ):
 
         for game in day.get(
             "games",
             []
         ):
-
 
 
             teams = game.get(
@@ -209,18 +189,3 @@ def get_mlb_slate(date=None):
 
 
     return games
-
-
-
-# ==========================================================
-# DEBUG
-# ==========================================================
-
-
-def print_slate(games):
-
-    for g in games:
-
-        print(
-            f"{g['away']} vs {g['home']}"
-        )
