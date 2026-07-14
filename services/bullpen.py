@@ -2,30 +2,112 @@
 
 # ==========================================================
 # MLB HR BLENDER vFINAL
-# BULLPEN CONTINUATION ENGINE
+# GATE 11 — BULLPEN CONTINUATION ENGINE
 #
-# Determines if HR environment survives
-# past the starting pitcher.
+# Determines late HR continuation risk.
 #
 # No picks.
-# Data only.
+# No hitter ranking.
+# Data layer only.
 # ==========================================================
 
 
 
-def calculate_bullpen_risk(bullpen):
+def build_bullpen_card(team_data):
+
 
     """
-    Bullpen HR Risk Score
+    Builds bullpen weakness profile.
 
     Inputs:
 
-    HR/9 allowed
-    Fatigue
-    Relief ERA
-    Recent usage
+    bullpen HR/9
+    relief ERA
+    recent usage
+    fatigue
+    """
+
+
+
+    return {
+
+
+        "team":
+
+            team_data.get(
+                "team",
+                "UNKNOWN"
+            ),
+
+
+        "hr9":
+
+            team_data.get(
+                "hr9",
+                0
+            ),
+
+
+        "era":
+
+            team_data.get(
+                "era",
+                0
+            ),
+
+
+        "recent_usage":
+
+            team_data.get(
+                "recent_usage",
+                0
+            ),
+
+
+        "fatigue":
+
+            team_data.get(
+                "fatigue",
+                0
+            ),
+
+
+        "risk_score":
+
+            calculate_bullpen_risk(
+                team_data
+            )
+
+    }
+
+
+
+
+
+# ==========================================================
+# BULLPEN RISK SCORE
+# ==========================================================
+
+
+def calculate_bullpen_risk(bullpen):
+
 
     """
+
+    Higher score =
+    weaker late inning HR resistance.
+
+
+    Formula:
+
+    HR/9      40%
+    Fatigue   30%
+    ERA       20%
+    Usage     10%
+
+    """
+
+
 
     hr9 = bullpen.get(
         "hr9",
@@ -45,10 +127,11 @@ def calculate_bullpen_risk(bullpen):
     )
 
 
-    recent_usage = bullpen.get(
+    usage = bullpen.get(
         "recent_usage",
         0
     )
+
 
 
     score = (
@@ -65,7 +148,7 @@ def calculate_bullpen_risk(bullpen):
 
         +
 
-        recent_usage * .10
+        usage * .10
 
     )
 
@@ -78,73 +161,13 @@ def calculate_bullpen_risk(bullpen):
 
 
 
-# ==========================================================
-# BUILD BULLPEN CARD
-# ==========================================================
-
-
-def build_bullpen_card(team_data):
-
-
-    return {
-
-
-        "team":
-
-            team_data.get(
-                "team"
-            ),
-
-
-        "hr9":
-
-            team_data.get(
-                "bullpen_hr9",
-                0
-            ),
-
-
-        "era":
-
-            team_data.get(
-                "bullpen_era",
-                0
-            ),
-
-
-        "fatigue":
-
-            team_data.get(
-                "fatigue",
-                0
-            ),
-
-
-        "recent_usage":
-
-            team_data.get(
-                "recent_usage",
-                0
-            ),
-
-
-        "risk_score":
-
-            calculate_bullpen_risk(
-                team_data
-            )
-
-    }
-
-
-
 
 # ==========================================================
 # GATE 11 CHECK
 # ==========================================================
 
 
-def bullpen_hr_path(bullpen):
+def bullpen_continuation_check(bullpen):
 
 
     """
@@ -158,7 +181,18 @@ def bullpen_hr_path(bullpen):
     fatigue present
 
 
+    Undefined data:
+    PASS THROUGH
+
     """
+
+
+
+    if not bullpen:
+
+        return True
+
+
 
     hr9 = bullpen.get(
         "hr9",
@@ -172,9 +206,17 @@ def bullpen_hr_path(bullpen):
     )
 
 
+
+    if hr9 == 0 and fatigue == 0:
+
+        return True
+
+
+
     if hr9 > 1.2:
 
         return True
+
 
 
     if fatigue >= 1:
@@ -182,35 +224,5 @@ def bullpen_hr_path(bullpen):
         return True
 
 
-    # Missing data does not kill
-
-    if hr9 == 0 and fatigue == 0:
-
-        return True
-
 
     return False
-
-
-
-
-# ==========================================================
-# GATE 13 CONTINUATION
-# ==========================================================
-
-
-def bullpen_continuation(bullpen):
-
-
-    risk = bullpen.get(
-        "risk_score",
-        0
-    )
-
-
-    if risk >= 1:
-
-        return True
-
-
-    return True
