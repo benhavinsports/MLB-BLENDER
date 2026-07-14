@@ -1,64 +1,67 @@
+# services/identity.py
+
 import requests
-import time
+
+
+# ==========================================================
+# PLAYER IDENTITY LOCK
+# MLB ID  -> REAL PLAYER NAME
+# ==========================================================
+
 
 PLAYER_CACHE = {}
 
-MLB_API = "https://statsapi.mlb.com/api/v1/people/"
-
-
-def resolve_player_name(player_id):
-
-    if not player_id:
-        return "UNKNOWN PLAYER"
-
-    player_id = str(player_id)
-
-    if player_id in PLAYER_CACHE:
-        return PLAYER_CACHE[player_id]
-
-    try:
-        url = MLB_API + player_id
-
-        response = requests.get(
-            url,
-            timeout=5
-        )
-
-        data = response.json()
-
-        people = data.get("people", [])
-
-        if people:
-
-            name = people[0].get(
-                "fullName",
-                "UNKNOWN PLAYER"
-            )
-
-            PLAYER_CACHE[player_id] = name
-
-            return name
-
-
-    except Exception:
-
-        pass
-
-
-    return f"PLAYER_{player_id}"
 
 
 def lock_player_identity(player):
 
     """
-    FINAL IDENTITY GATE
+    FINAL NAME RESOLUTION LAYER
 
-    No raw IDs leave engine.
+    Input can be:
+
+    {
+        "id": 660271,
+        "name": "Aaron Judge"
+    }
+
+    OR
+
+    {
+        "player_id": 660271
+    }
+
+    Returns:
+
+    Real player name string
     """
 
-    if not isinstance(player, dict):
-        return player
 
+    if not player:
+
+        return "UNKNOWN"
+
+
+
+    # Already has real name
+
+    existing_name = player.get(
+        "name"
+    )
+
+
+    if (
+        existing_name
+        and not str(existing_name).startswith("player_")
+        and not str(existing_name).isdigit()
+        and not str(existing_name).startswith("Unknown")
+    ):
+
+        return existing_name
+
+
+
+    # Find ID
 
     player_id = (
         player.get("id")
@@ -67,16 +70,121 @@ def lock_player_identity(player):
     )
 
 
-    existing_name = player.get("name")
+
+    if not player_id:
+
+        return "UNKNOWN"
 
 
-    if existing_name:
-        return existing_name
+
+    return get_player_name(
+        player_id
+    )
 
 
-    if player_id:
-
-        return resolve_player_name(player_id)
 
 
-    return "UNKNOWN PLAYER"
+# ==========================================================
+# MLB STATS API LOOKUP
+# ==========================================================
+
+
+def get_player_name(player_id):
+
+
+    player_id = str(
+        player_id
+    )
+
+
+    if player_id in PLAYER_CACHE:
+
+        return PLAYER_CACHE[player_id]
+
+
+
+    try:
+
+
+        url = (
+            "https://statsapi.mlb.com/api/v1/people/"
+            f"{player_id}"
+        )
+
+
+        response = requests.get(
+            url,
+            timeout=5
+        )
+
+
+        data = response.json()
+
+
+
+        people = data.get(
+            "people",
+            []
+        )
+
+
+        if not people:
+
+            return f"UNKNOWN_{player_id}"
+
+
+
+        name = people[0].get(
+            "fullName"
+        )
+
+
+
+        if name:
+
+            PLAYER_CACHE[player_id] = name
+
+            return name
+
+
+
+    except Exception:
+
+        pass
+
+
+
+    return f"UNKNOWN_{player_id}"
+
+
+
+
+# ==========================================================
+# BATCH NAME LOADER
+# NO LAG VERSION
+# ==========================================================
+
+
+def preload_players(players):
+
+    """
+    Loads all names before Blender starts.
+
+    Prevents:
+
+    player_824659_1
+
+    appearing in output.
+    """
+
+
+    for p in players:
+
+        get_player_name(
+            p.get("id")
+            or
+            p.get("player_id")
+        )
+
+
+    return True
