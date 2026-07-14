@@ -1,37 +1,64 @@
+# app.py
+
 import streamlit as st
 
 from services.slate import get_mlb_slate
 from engine.core import run_blender
-from services.output import build_core3
+
 
 
 # ==========================================================
 # MLB HR BLENDER vFINAL
-# MAIN APPLICATION
+# MAIN ENTRY POINT
 # ==========================================================
+
 
 st.set_page_config(
     page_title="MLB HR Blender",
     layout="wide"
 )
 
-st.title("⚾ MLB HR BLENDER vFINAL")
-st.write("True Event Engine — Gates 0–18")
+
+st.title(
+    "⚾ MLB HR BLENDER vFINAL"
+)
+
+
+st.write(
+    "True Event Engine — Gate 0-18"
+)
+
 
 
 # ==========================================================
-# LOAD MLB SLATE
+# LOAD SLATE
 # ==========================================================
 
-st.subheader("📅 Today's Slate")
+
+st.subheader(
+    "📅 MLB SLATE"
+)
+
 
 games = get_mlb_slate()
 
+
+
 if not games:
-    st.error("No games loaded.")
+
+    st.error(
+        "NO GAMES LOADED"
+    )
+
     st.stop()
 
-st.success(f"{len(games)} games loaded.")
+
+
+st.success(
+    f"{len(games)} games loaded"
+)
+
+
 
 for game in games:
 
@@ -40,59 +67,98 @@ for game in games:
     )
 
 
+
+
 # ==========================================================
 # RUN BLENDER
 # ==========================================================
 
-st.subheader("🔥 Running Blender")
 
-results = run_blender(games)
+st.subheader(
+    "🔥 RUNNING BLENDER"
+)
+
+
+
+results = run_blender(
+    games
+)
+
+
 
 if not results:
-    st.error("No Blender results.")
+
+    st.error(
+        "NO BLENDER RESULTS"
+    )
+
     st.stop()
 
 
+
+
 # ==========================================================
-# GAME RESULTS
+# FINAL SURVIVORS
 # ==========================================================
 
-st.subheader("🏆 Final Survivor Per Game")
+
+st.subheader(
+    "🏆 FINAL HR SURVIVORS"
+)
+
+
 
 for result in results:
 
-    st.markdown("---")
+
+    st.markdown(
+        "---"
+    )
+
 
     st.write(
         "GAME:",
-        result["game"]
+        result.get(
+            "game",
+            "UNKNOWN"
+        )
     )
+
 
     st.write(
         "FINAL SURVIVOR:",
-        result["survivor"]
+        result.get(
+            "survivor",
+            "UNKNOWN"
+        )
     )
+
 
     st.write(
         "STATUS:",
-        result["status"]
+        "LOCKED"
     )
+
 
 
 # ==========================================================
 # CORE 3
 # ==========================================================
 
-st.subheader("🔥 CORE 3")
 
-core3 = build_core3(results)
+st.subheader(
+    "🔥 CORE 3"
+)
 
-for i, player in enumerate(core3, start=1):
+
+
+core3 = results[:3]
+
+
+
+for index, result in enumerate(core3,1):
+
 
     st.write(
-        f"{i}. {player['player']}"
-    )
-
-    st.caption(
-        player["game"]
+        f"{index}. {result.get('survivor','UNKNOWN')}"
     )
