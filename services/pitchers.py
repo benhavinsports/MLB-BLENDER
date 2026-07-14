@@ -2,168 +2,388 @@
 
 # ==========================================================
 # MLB HR BLENDER vFINAL
-# PITCHER TARGET LAYER
+# GATE 0 — PITCHER LEAK MAP
 #
-# Finds HR vulnerability.
-# Does NOT pick hitters.
+# Purpose:
+# Find where HR resistance breaks.
+#
+# Does NOT select hitters.
+# Does NOT select teams.
+#
+# Outputs pitcher vulnerability profile.
 # ==========================================================
 
 
-def calculate_leak_score(pitcher):
+
+def build_pitcher_card(pitcher):
 
     """
-    Gate 0 Leak Score
+    Creates standardized pitcher weakness profile.
 
-    Formula:
-
-    HR/9 × .25
-    Barrel Allowed × .25
-    xwOBA Allowed × .20
-    Hard Hit Allowed × .15
-    Pitch Predictability × .15
+    Input:
+    {
+        name,
+        hr9,
+        barrel_allowed,
+        xwoba_allowed,
+        hard_hit_allowed,
+        k_rate,
+        pitch_mix,
+        platoon_splits
+    }
 
     """
+
+    if pitcher is None:
+
+        return {
+
+            "name": "UNKNOWN",
+
+            "leak_score": 0,
+
+            "status": "NO DATA"
+
+        }
+
+
 
     hr9 = pitcher.get(
         "hr9",
         0
     )
 
+
     barrel = pitcher.get(
         "barrel_allowed",
         0
     )
+
 
     xwoba = pitcher.get(
         "xwoba_allowed",
         0
     )
 
+
     hard_hit = pitcher.get(
         "hard_hit_allowed",
         0
     )
 
-    predictability = pitcher.get(
-        "pitch_predictability",
+
+    k_rate = pitcher.get(
+        "k_rate",
         0
     )
 
 
-    score = (
 
-        hr9 * .25
-
-        +
-
-        barrel * .25
-
-        +
-
-        xwoba * .20
-
-        +
-
-        hard_hit * .15
-
-        +
-
-        predictability * .15
-
+    predictability = (
+        pitch_predictability(
+            pitcher.get(
+                "pitch_mix",
+                {}
+            )
+        )
     )
 
 
-    return round(
-        score,
-        3
+    platoon = (
+        platoon_weakness(
+            pitcher.get(
+                "platoon_splits",
+                {}
+            )
+        )
     )
 
 
 
-# ==========================================================
-# BUILD PITCHER CARD
-# ==========================================================
+    leak_score = calculate_leak_score(
 
+        hr9,
 
-def build_pitcher_card(pitcher):
+        barrel,
+
+        xwoba,
+
+        hard_hit,
+
+        k_rate,
+
+        predictability
+
+    )
+
 
 
     return {
 
 
         "name":
+
             pitcher.get(
-                "name"
+                "name",
+                "UNKNOWN"
             ),
 
-
-        "hand":
-            pitcher.get(
-                "hand"
-            ),
 
 
         "hr9":
-            pitcher.get(
-                "hr9",
-                0
-            ),
+
+            hr9,
+
 
 
         "barrel_allowed":
-            pitcher.get(
-                "barrel_allowed",
-                0
-            ),
+
+            barrel,
+
 
 
         "xwoba_allowed":
-            pitcher.get(
-                "xwoba_allowed",
-                0
-            ),
+
+            xwoba,
+
 
 
         "hard_hit_allowed":
-            pitcher.get(
-                "hard_hit_allowed",
-                0
-            ),
+
+            hard_hit,
+
+
+
+        "k_rate":
+
+            k_rate,
+
 
 
         "pitch_predictability":
-            pitcher.get(
-                "pitch_predictability",
-                0
-            ),
+
+            predictability,
+
+
+
+        "platoon_weakness":
+
+            platoon,
+
 
 
         "leak_score":
-            calculate_leak_score(
-                pitcher
-            )
+
+            leak_score
 
     }
 
 
 
+
+
 # ==========================================================
-# TARGET MAP
+# LEAK SCORE
+# ==========================================================
+
+
+def calculate_leak_score(
+
+    hr9,
+
+    barrel,
+
+    xwoba,
+
+    hard_hit,
+
+    k_rate,
+
+    predictability
+
+):
+
+
+    """
+    HR resistance failure score.
+
+    Higher = easier HR environment.
+
+    """
+
+
+
+    score = (
+
+        (hr9 * 2.0)
+
+        +
+
+        (barrel * 1.5)
+
+        +
+
+        (xwoba * 1.2)
+
+        +
+
+        (hard_hit * 1.0)
+
+        -
+
+        (k_rate * 0.8)
+
+        +
+
+        (predictability)
+
+    )
+
+
+
+    return round(
+
+        score,
+
+        3
+
+    )
+
+
+
+
+
+# ==========================================================
+# PITCH PREDICTABILITY
+# ==========================================================
+
+
+def pitch_predictability(pitch_mix):
+
+
+    """
+    More predictable arsenals create
+    better HR hunting lanes.
+
+    """
+
+
+
+    if not pitch_mix:
+
+        return 0
+
+
+
+    pitch_count = len(
+        pitch_mix
+    )
+
+
+
+    # Fewer reliable weapons =
+    # easier pattern recognition
+
+
+    if pitch_count <= 2:
+
+        return 2.0
+
+
+    if pitch_count == 3:
+
+        return 1.0
+
+
+
+    return 0.5
+
+
+
+
+
+# ==========================================================
+# PLATOON WEAKNESS
+# ==========================================================
+
+
+def platoon_weakness(splits):
+
+
+    """
+    Determines whether pitcher has
+    exploitable LHB/RHB weakness.
+
+    """
+
+
+
+    if not splits:
+
+        return "UNKNOWN"
+
+
+
+    lhb = splits.get(
+        "vs_lhb",
+        0
+    )
+
+
+    rhb = splits.get(
+        "vs_rhb",
+        0
+    )
+
+
+
+    if lhb > rhb:
+
+        return "LHB_TARGET"
+
+
+    if rhb > lhb:
+
+        return "RHB_TARGET"
+
+
+
+    return "NEUTRAL"
+
+
+
+
+
+# ==========================================================
+# PITCHER MAP BUILDER
 # ==========================================================
 
 
 def rank_pitchers(pitchers):
 
 
+    """
+    Creates Gate 0 resistance map.
+
+    Only ranks pitchers.
+    No hitter selection.
+    """
+
+
+
     cards = []
+
 
 
     for pitcher in pitchers:
 
+
         cards.append(
+
             build_pitcher_card(
                 pitcher
             )
+
         )
 
 
@@ -173,7 +393,11 @@ def rank_pitchers(pitchers):
         cards,
 
         key=lambda x:
-            x["leak_score"],
+
+            x.get(
+                "leak_score",
+                0
+            ),
 
         reverse=True
 
