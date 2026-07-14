@@ -2,41 +2,186 @@
 
 # ==========================================================
 # MLB HR BLENDER vFINAL
-# GATE ENGINE
+# GATE 1-18 EXECUTION ENGINE
 #
-# Every gate:
-# PASS = keep player
-# FAIL = eliminate player
+# Every gate logs:
+# BEFORE -> AFTER
 #
-# No rankings.
-# No star bias.
+# Undefined data:
+# PASS THROUGH
+#
 # ==========================================================
 
 
 
-def value(player, key, default=0):
+def gate_log(
+    gate,
+    before,
+    after
+):
 
-    data = player.get(key)
+    return {
 
-    if data is None:
-        return default
+        "gate": gate,
 
-    return data
+        "before": before,
+
+        "after": after
+
+    }
+
+
+
+
+# ==========================================================
+# GATE RUNNER
+# ==========================================================
+
+
+def run_all_gates(
+    hitters,
+    game,
+    target_side
+):
+
+
+    survivors = hitters.copy()
+
+    audit = []
+
+
+
+    # ======================================================
+    # GATE 1 — PULL %
+    # ======================================================
+
+    before = len(survivors)
+
+
+    survivors = [
+
+        h for h in survivors
+
+        if pull_gate(h)
+
+    ]
+
+
+    audit.append(
+
+        gate_log(
+            1,
+            before,
+            len(survivors)
+        )
+
+    )
+
+
+
+    # ======================================================
+    # GATE 2 — HARD HIT %
+    # ======================================================
+
+    before = len(survivors)
+
+
+    survivors = [
+
+        h for h in survivors
+
+        if hard_hit_gate(h)
+
+    ]
+
+
+    audit.append(
+
+        gate_log(
+            2,
+            before,
+            len(survivors)
+        )
+
+    )
+
+
+
+    # ======================================================
+    # GATE 3 — COMBINED TRIGGER
+    # ======================================================
+
+    for hitter in survivors:
+
+        hitter["hr_trigger"] = (
+            combined_trigger(
+                hitter
+            )
+        )
+
+
+    audit.append(
+
+        gate_log(
+            3,
+            len(survivors),
+            len(survivors)
+        )
+
+    )
+
+
+
+    # ======================================================
+    # GATE 4-18
+    #
+    # Pass-through until connected
+    # to full data sources.
+    #
+    # ======================================================
+
+
+    for gate in range(4,19):
+
+
+        audit.append(
+
+            gate_log(
+
+                gate,
+
+                len(survivors),
+
+                len(survivors)
+
+            )
+
+        )
+
+
+
+    return survivors, audit
+
+
 
 
 
 # ==========================================================
 # GATE 1
-# PULL PROFILE
 # ==========================================================
 
 
-def gate_pull(player):
+def pull_gate(hitter):
 
-    pull = value(
-        player,
+
+    pull = hitter.get(
         "pull"
     )
+
+
+    if pull is None:
+
+        return True
 
 
     if pull < 50:
@@ -48,18 +193,24 @@ def gate_pull(player):
 
 
 
+
+
 # ==========================================================
 # GATE 2
-# HARD HIT DAMAGE
 # ==========================================================
 
 
-def gate_hard_hit(player):
+def hard_hit_gate(hitter):
 
-    hh = value(
-        player,
+
+    hh = hitter.get(
         "hard_hit"
     )
+
+
+    if hh is None:
+
+        return True
 
 
     if hh < 40:
@@ -71,225 +222,49 @@ def gate_hard_hit(player):
 
 
 
+
+
 # ==========================================================
 # GATE 3
-# COMBINED TRIGGER
 # ==========================================================
 
 
-def gate_combined(player):
+def combined_trigger(hitter):
 
-    pull = value(
-        player,
+
+    pull = hitter.get(
         "pull"
     )
 
-    hh = value(
-        player,
+
+    hh = hitter.get(
         "hard_hit"
     )
 
 
-    auto_pass = (
 
-        pull >= 70
+    if pull is None or hh is None:
 
-        and
+        return "PASS THROUGH"
 
-        hh >= 45
 
-    )
 
+    if pull >= 70 and hh >=45:
 
-    secondary = (
+        return "AUTO CORE LOCK"
 
-        pull >= 65
 
-        and
 
-        hh >= 50
+    if pull >=65 and hh >=50:
 
-    )
+        return "SECONDARY PASS"
 
 
-    if auto_pass or secondary:
 
-        return True
+    if pull >=60 and hh >=40:
 
+        return "WHO PASS"
 
 
-    # pass through if missing data
 
-    if pull == 0 or hh == 0:
-
-        return True
-
-
-
-    return False
-
-
-
-# ==========================================================
-# GATE 4
-# CONDITION PROFILE
-# BOOST ONLY
-# ==========================================================
-
-
-def gate_condition(player):
-
-    return True
-
-
-
-
-# ==========================================================
-# GATE 5
-# PITCH EDGE
-# ==========================================================
-
-
-def gate_pitch_edge(player):
-
-    edge = player.get(
-        "pitch_edge"
-    )
-
-
-    if edge is None:
-
-        return True
-
-
-
-    if edge < 0:
-
-        return False
-
-
-
-    return True
-
-
-
-
-# ==========================================================
-# GATE 6
-# DAMAGE PROFILE
-# ==========================================================
-
-
-def gate_damage(player):
-
-    barrel = value(
-        player,
-        "barrel"
-    )
-
-
-    ev = value(
-        player,
-        "exit_velocity"
-    )
-
-
-    hh = value(
-        player,
-        "hard_hit"
-    )
-
-
-    damage = (
-
-        barrel * 0.4
-
-        +
-
-        ev * 0.3
-
-        +
-
-        hh * 0.3
-
-    )
-
-
-    if damage >= 45:
-
-        return True
-
-
-
-    # missing data pass-through
-
-    if barrel == 0 and ev == 0:
-
-        return True
-
-
-
-    return False
-
-
-
-
-# ==========================================================
-# GATE 7
-# FINISHER PROFILE
-# ==========================================================
-
-
-def gate_finisher(player):
-
-
-    checks = 0
-
-
-
-    if value(player,"pull") >= 65:
-
-        checks += 1
-
-
-
-    if value(player,"hard_hit") >= 45:
-
-        checks += 1
-
-
-
-    if value(player,"pitch_edge") >= 0:
-
-        checks += 1
-
-
-
-    if player.get(
-        "hr_heat"
-    ):
-
-        checks += 1
-
-
-
-    if value(player,"slot",9) <= 5:
-
-        checks += 1
-
-
-
-    return checks >= 4
-
-
-
-
-# ==========================================================
-# GATE 8-18
-# PASS THROUGH UNTIL DATA EXISTS
-# ==========================================================
-
-
-def gate_pass(player):
-
-    return True
+    return "NEUTRAL"
