@@ -4,112 +4,106 @@
 # MLB HR BLENDER vFINAL
 # GATE 0 — TARGET LAYER
 #
-# Finds weakest HR resistance point.
+# Finds HR resistance failure points.
 #
-# Does NOT select hitters.
-# Does NOT rank stars.
+# No hitter selection.
+# No final picks.
 #
-# Output:
-# One offense target
 # ==========================================================
+
 
 
 def rank_offense_targets(games):
 
-    """
-    Receives games with pitcher cards attached.
 
-    Finds the offense facing the weaker
-    HR resistance profile.
     """
+    Builds offense vulnerability map.
+
+    Uses pitcher leak scores.
+
+    Higher pitcher leak =
+    weaker HR resistance.
+    """
+
+
 
     targets = []
+
 
 
     for game in games:
 
 
-        away_pitcher = game.get(
-            "away_pitcher_card",
-            {}
+
+        pitchers = game.get(
+            "pitchers",
+            []
         )
 
 
-        home_pitcher = game.get(
-            "home_pitcher_card",
-            {}
+
+        if not pitchers:
+
+            continue
+
+
+
+        weakest = max(
+
+            pitchers,
+
+            key=lambda x:
+
+                x.get(
+                    "leak_score",
+                    0
+                )
+
         )
 
 
-        away_leak = away_pitcher.get(
-            "leak_score",
-            0
-        )
+
+        targets.append({
 
 
-        home_leak = home_pitcher.get(
-            "leak_score",
-            0
-        )
+            "game":
+
+                game,
 
 
-        # Higher pitcher leak =
-        # weaker HR resistance
+            "pitcher":
+
+                weakest.get(
+                    "name",
+                    "UNKNOWN"
+                ),
 
 
-        if away_leak > home_leak:
+            "leak_score":
+
+                weakest.get(
+                    "leak_score",
+                    0
+                ),
 
 
-            targets.append({
+            "side":
 
-                "game_id":
-                    game.get(
-                        "game_id"
-                    ),
+                find_attack_side(
 
-                "team":
-                    game.get(
-                        "home"
-                    ),
+                    game,
 
-                "pitcher":
-                    away_pitcher.get(
-                        "name"
-                    ),
+                    weakest
 
-                "leak_score":
-                    away_leak
+                )
 
-            })
+        })
 
-
-        else:
-
-
-            targets.append({
-
-                "game_id":
-                    game.get(
-                        "game_id"
-                    ),
-
-                "team":
-                    game.get(
-                        "away"
-                    ),
-
-                "pitcher":
-                    home_pitcher.get(
-                        "name"
-                    ),
-
-                "leak_score":
-                    home_leak
-
-            })
 
 
     return targets
+
+
 
 
 
@@ -122,29 +116,108 @@ def lock_side(target):
 
 
     """
-    Gate 0 rule:
+    Locks one offense.
 
-    ONE offense only.
-
-    No side flipping later.
+    After this point:
+    no side flipping.
     """
+
+
+
+    return target.get(
+        "side"
+    )
+
+
+
+
+
+# ==========================================================
+# DETERMINE ATTACK SIDE
+# ==========================================================
+
+
+def find_attack_side(
+
+    game,
+
+    pitcher
+
+):
+
+
+    """
+    Determines which offense receives
+    the pitcher weakness lane.
+
+    Uses:
+
+    platoon weakness
+    pitcher identity
+    matchup side
+
+    """
+
+
+
+    weakness = pitcher.get(
+        "platoon_weakness"
+    )
+
+
+
+    if weakness == "LHB_TARGET":
+
+
+        return {
+
+            "team":
+
+                game.get(
+                    "home"
+                ),
+
+            "hand":
+
+                "LHB"
+
+        }
+
+
+
+    if weakness == "RHB_TARGET":
+
+
+        return {
+
+            "team":
+
+                game.get(
+                    "away"
+                ),
+
+            "hand":
+
+                "RHB"
+
+        }
+
+
+
+    # Undefined data =
+    # pass through
 
 
     return {
 
-        "locked_team":
-            target.get(
-                "team"
+        "team":
+
+            game.get(
+                "home"
             ),
 
-        "target_pitcher":
-            target.get(
-                "pitcher"
-            ),
+        "hand":
 
-        "leak_score":
-            target.get(
-                "leak_score"
-            )
+            "NEUTRAL"
 
     }
