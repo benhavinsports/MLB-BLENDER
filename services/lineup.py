@@ -2,44 +2,38 @@
 
 import requests
 
-from services.players import get_player_name
+
+# ==========================================================
+# MLB HR BLENDER vFINAL
+# LINEUP IDENTITY LAYER
+# REAL PLAYER NAMES
+# ==========================================================
 
 
-MLB_GAME_URL = (
-    "https://statsapi.mlb.com/api/v1/game"
-)
+CACHE = {}
 
 
-
-def get_game_lineup(game_id):
-
-    """
-    Loads official MLB lineup.
-
-    Returns only hitters.
-
-    Example:
-
-    [
-        {
-            id: 123,
-            name: "Player Name",
-            slot: 1,
-            side: "home",
-            handedness: "R"
-        }
-    ]
+def resolve_player_name(player_id):
 
     """
+    Convert MLB ID -> real name.
 
-    if not game_id:
-        return []
+    Names are locked here.
+    Blender never sees raw IDs.
+    """
+
+    if not player_id:
+        return "UNKNOWN"
+
+
+    if player_id in CACHE:
+        return CACHE[player_id]
 
 
     try:
 
         url = (
-            f"{MLB_GAME_URL}/{game_id}/boxscore"
+            f"https://statsapi.mlb.com/api/v1/people/{player_id}"
         )
 
 
@@ -49,114 +43,118 @@ def get_game_lineup(game_id):
         ).json()
 
 
-    except Exception as e:
-
-        print(
-            "LINEUP ERROR:",
-            e
-        )
-
-        return []
-
-
-
-    hitters = []
-
-
-
-    teams = data.get(
-        "teams",
-        {}
-    )
-
-
-    for side in [
-        "home",
-        "away"
-    ]:
-
-
-        team = teams.get(
-            side,
-            {}
+        people = data.get(
+            "people",
+            []
         )
 
 
-        players = team.get(
-            "players",
-            {}
+        if people:
+
+            name = people[0].get(
+                "fullName",
+                "UNKNOWN"
+            )
+
+            CACHE[player_id] = name
+
+            return name
+
+
+    except Exception:
+
+        pass
+
+
+    return f"UNKNOWN_{player_id}"
+
+
+
+# ==========================================================
+# NORMALIZE LINEUP
+# ==========================================================
+
+def normalize_lineup(raw_players, team):
+
+
+    lineup = []
+
+
+    for p in raw_players:
+
+
+        player_id = p.get(
+            "id"
         )
 
 
-        for player_data in players.values():
+        name = p.get(
+            "name"
+        )
 
 
-            person = player_data.get(
-                "person",
-                {}
+        if not name or name == player_id:
+
+            name = resolve_player_name(
+                player_id
             )
 
 
-            player_id = person.get(
-                "id"
-            )
+        lineup.append({
+
+            "id":
+                player_id,
 
 
-            position = player_data.get(
-                "position",
-                {}
-            ).get(
-                "abbreviation"
-            )
+            "name":
+                name,
 
 
-            # REMOVE PITCHERS
-
-            if position == "P":
-
-                continue
+            "team":
+                team,
 
 
+            "slot":
+                p.get(
+                    "battingOrder",
+                    9
+                ),
 
-            name = person.get(
-                "fullName"
-            )
 
-
-            if not name:
-
-                name = get_player_name(
-                    player_id
+            "handedness":
+                p.get(
+                    "handedness",
+                    "R"
                 )
 
 
-
-            hitters.append({
-
-                "id":
-                    player_id,
+        })
 
 
-                "name":
-                    name,
-
-
-                "slot":
-                    player_data.get(
-                        "battingOrder",
-                        9
-                    ),
-
-
-                "side":
-                    side,
-
-
-                "position":
-                    position
-
-            })
+    return lineup
 
 
 
-    return hitters
+# ==========================================================
+# LOAD GAME LINEUP
+# ==========================================================
+
+def get_game_lineup(game):
+
+
+    """
+    Placeholder connection point.
+
+    This returns confirmed starters only.
+
+    The data source plugs in here.
+    """
+
+
+    players = []
+
+
+    # Real lineup endpoint connects here.
+
+
+    return players
