@@ -2,42 +2,49 @@
 
 # ==========================================================
 # MLB HR BLENDER vFINAL
-# GATE 18 — FINAL SURVIVOR LOCK
+# GATE 18 — FINAL HR SURVIVOR LOCK
 #
-# Final output enforcement.
+# Final output layer.
 #
-# One game = one HR recipient
+# Rule:
+# Exactly ONE hitter per game.
 #
 # No:
-# - rankings
-# - alternates
-# - backups
-# - top plays
+# - Top 3
+# - Rankings
+# - Alternates
+# - Hedge picks
 #
 # ==========================================================
 
 
 
-def final_lock(game, players):
+def final_lock(
+    survivors,
+    game
+):
 
 
     """
-    Receives only final survivors.
+    Final event ownership lock.
 
-    Selects the single owner
-    of the HR event.
+    Input:
+        survivors after all gates
+
+    Output:
+        single locked HR recipient
     """
 
 
-    if not players:
+
+    if not survivors:
 
 
         return {
 
-
             "game":
 
-                f"{game.get('away')} vs {game.get('home')}",
+                game_name(game),
 
 
             "survivor":
@@ -47,7 +54,7 @@ def final_lock(game, players):
 
             "why":
 
-                "NO SURVIVOR PASSED FINAL AUDIT",
+                "NO VALID SURVIVOR",
 
 
             "status":
@@ -58,24 +65,30 @@ def final_lock(game, players):
 
 
 
-    survivor = max(
+    # ======================================================
+    # FINAL EVENT OWNERSHIP FILTER
+    #
+    # No star bias.
+    # No name value.
+    #
+    # Uses accumulated gate score.
+    # ======================================================
 
 
-        players,
+    locked = sorted(
 
+        survivors,
 
         key=lambda x:
 
             x.get(
-
-                "ownership_score",
-
+                "gate_score",
                 0
+            ),
 
-            )
+        reverse=True
 
-
-    )
+    )[0]
 
 
 
@@ -84,78 +97,77 @@ def final_lock(game, players):
 
         "game":
 
-            f"{game.get('away')} vs {game.get('home')}",
-
+            game_name(
+                game
+            ),
 
 
         "survivor":
 
-            survivor.get(
-
-                "name",
-
+            locked.get(
+                "player",
                 "UNKNOWN"
-
             ),
-
 
 
         "team":
 
-            survivor.get(
-
+            locked.get(
                 "team",
-
                 "UNKNOWN"
-
             ),
-
 
 
         "why":
 
-            "HR EVENT RECIPIENT AFTER OWNERSHIP AUDIT",
+            locked.get(
+                "event_reason",
+                "HR EVENT RECIPIENT"
+            ),
 
+
+        "gate_score":
+
+            locked.get(
+                "gate_score",
+                0
+            ),
 
 
         "status":
 
             "LOCKED"
 
-
     }
 
 
 
 
+
 # ==========================================================
-# CORE 3 BUILDER
+# GAME FORMATTER
 # ==========================================================
 
 
-def build_core3(results):
+def game_name(game):
 
 
-    """
-    Final 3 games only.
+    if not game:
 
-    No reranking.
-
-    Uses Blender output order.
-    """
+        return "UNKNOWN GAME"
 
 
-    core = []
+
+    away = game.get(
+        "away",
+        "UNKNOWN"
+    )
 
 
-    for result in results[:3]:
+    home = game.get(
+        "home",
+        "UNKNOWN"
+    )
 
 
-        core.append(
-
-            result
-
-        )
-
-
-    return core
+    return f"{away} vs {home}"
