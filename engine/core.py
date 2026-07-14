@@ -3,6 +3,17 @@
 from services.lineup import get_game_lineup
 from services.stats import attach_stats
 
+from engine.gates import (
+    gate_pull,
+    gate_hard_hit,
+    gate_combined,
+    gate_condition,
+    gate_pitch_edge,
+    gate_damage,
+    gate_finisher,
+    gate_pass
+)
+
 
 # ==========================================================
 # MLB HR BLENDER vFINAL
@@ -25,7 +36,7 @@ def run_blender(games):
 
 
 # ==========================================================
-# SINGLE GAME PROCESS
+# SINGLE GAME
 # ==========================================================
 
 
@@ -35,7 +46,7 @@ def process_game(game):
 
 
     # -------------------------
-    # LOAD HITTABLE POOL
+    # LOAD LINEUP
     # -------------------------
 
     hitters = get_game_lineup(
@@ -44,14 +55,14 @@ def process_game(game):
 
 
     audit.append({
-        "step": "LINEUP LOAD",
+        "stage": "LINEUP",
         "count": len(hitters)
     })
 
 
 
     # -------------------------
-    # ATTACH PLAYER DATA
+    # ATTACH STATS
     # -------------------------
 
     hitters = attach_stats(
@@ -60,24 +71,8 @@ def process_game(game):
 
 
     audit.append({
-        "step": "STATS ATTACHED",
+        "stage": "STATS",
         "count": len(hitters)
-    })
-
-
-
-    # -------------------------
-    # GATE 0
-    # -------------------------
-
-    audit.append({
-
-        "gate": 0,
-
-        "target":
-            game.get("away")
-            + " offense"
-
     })
 
 
@@ -87,78 +82,95 @@ def process_game(game):
 
 
     # -------------------------
-    # GATES 1-18
+    # GATE 1-18 ORDER
     # -------------------------
 
-    gates = [
+    gate_chain = [
 
-        gate_1_pull,
+        ("Gate 1 Pull", gate_pull),
 
-        gate_2_damage,
+        ("Gate 2 Damage", gate_hard_hit),
 
-        gate_3_combined_trigger,
+        ("Gate 3 Trigger", gate_combined),
 
-        gate_4_condition,
+        ("Gate 4 Condition", gate_condition),
 
-        gate_5_pitch_edge,
+        ("Gate 5 Pitch Edge", gate_pitch_edge),
 
-        gate_6_hr_heat,
+        ("Gate 6 Damage Profile", gate_damage),
 
-        gate_7_finisher_profile,
+        ("Gate 7 Finisher", gate_finisher),
 
-        gate_8_opportunity,
+        ("Gate 8 Conversion", gate_pass),
 
-        gate_9_environment,
+        ("Gate 9 Environment", gate_pass),
 
-        gate_10_decoy,
+        ("Gate 10 Opportunity", gate_pass),
 
-        gate_11_bullpen,
+        ("Gate 10.5 Decoy Transfer", gate_pass),
 
-        gate_12_event_owner,
+        ("Gate 11 Bullpen", gate_pass),
 
-        gate_13_numerology,
+        ("Gate 12 Event Ownership", gate_pass),
 
-        gate_14_protection,
+        ("Gate 13 Numerology", gate_pass),
 
-        gate_15_finisher,
+        ("Gate 14 Protection", gate_pass),
 
-        gate_16_last_man,
+        ("Gate 15 Finisher Check", gate_pass),
 
-        gate_17_audit,
+        ("Gate 16 Last Elimination", gate_pass),
 
-        gate_18_lock
+        ("Gate 17 Audit", gate_pass)
 
     ]
 
 
 
-    for number, gate in enumerate(gates, 1):
+    for name, gate in gate_chain:
 
-        before = len(survivors)
+
+        before = len(
+            survivors
+        )
 
 
         survivors = [
-            p for p in survivors
-            if gate(p)
+
+            hitter
+
+            for hitter in survivors
+
+            if gate(hitter)
+
         ]
+
+
+        after = len(
+            survivors
+        )
 
 
         audit.append({
 
             "gate":
-                number,
+                name,
 
             "before":
                 before,
 
             "after":
-                len(survivors)
+                after
 
         })
 
 
 
-    final = choose_survivor(
+    # -------------------------
+    # GATE 18 FINAL LOCK
+    # -------------------------
+
+    survivor = final_lock(
         survivors
     )
 
@@ -169,157 +181,37 @@ def process_game(game):
         "game":
             f"{game['away']} vs {game['home']}",
 
-        "survivor":
-            final,
 
-        "audit":
-            audit,
+        "survivor":
+            survivor,
+
 
         "status":
-            "LOCKED"
+            "LOCKED",
+
+
+        "audit":
+            audit
 
     }
 
 
 
-# ==========================================================
-# GATE FUNCTIONS
-# ==========================================================
-
-
-def gate_1_pull(p):
-
-    pull = p.get("pull")
-
-    if pull is None:
-        return True
-
-    return pull >= 50
-
-
-
-def gate_2_damage(p):
-
-    hh = p.get("hard_hit")
-
-    if hh is None:
-        return True
-
-    return hh >= 40
-
-
-
-def gate_3_combined_trigger(p):
-
-    pull = p.get("pull")
-
-    hh = p.get("hard_hit")
-
-
-    if pull is None or hh is None:
-        return True
-
-
-    return (
-        pull >= 65
-        and hh >= 40
-    )
-
-
-
-def gate_4_condition(p):
-    return True
-
-
-
-def gate_5_pitch_edge(p):
-
-    edge = p.get(
-        "pitch_edge"
-    )
-
-    if edge is None:
-        return True
-
-    return edge >= 0
-
-
-
-def gate_6_hr_heat(p):
-    return True
-
-
-
-def gate_7_finisher_profile(p):
-    return True
-
-
-
-def gate_8_opportunity(p):
-    return True
-
-
-
-def gate_9_environment(p):
-    return True
-
-
-
-def gate_10_decoy(p):
-    return True
-
-
-
-def gate_11_bullpen(p):
-    return True
-
-
-
-def gate_12_event_owner(p):
-    return True
-
-
-
-def gate_13_numerology(p):
-    return True
-
-
-
-def gate_14_protection(p):
-    return True
-
-
-
-def gate_15_finisher(p):
-    return True
-
-
-
-def gate_16_last_man(p):
-    return True
-
-
-
-def gate_17_audit(p):
-    return True
-
-
-
-def gate_18_lock(p):
-    return True
-
-
 
 # ==========================================================
-# FINAL OUTPUT
+# FINAL EVENT OWNER
 # ==========================================================
 
 
-def choose_survivor(players):
+def final_lock(players):
 
     if not players:
+
         return "NO SURVIVOR"
 
+
+    # temporary deterministic lock
+    # ranking layer comes later
 
     return players[0].get(
         "name",
