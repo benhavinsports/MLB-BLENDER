@@ -3,6 +3,11 @@
 from services.lineup import get_game_lineup
 from services.stats import attach_stats
 
+from engine.audit import (
+    log_gate,
+    log_player_removal
+)
+
 from engine.gates import (
     gate_pull,
     gate_hard_hit,
@@ -14,10 +19,9 @@ from engine.gates import (
     gate_pass
 )
 
-
 # ==========================================================
 # MLB HR BLENDER vFINAL
-# SINGLE ENGINE CONTROLLER
+# CORE CONTROLLER
 # ==========================================================
 
 
@@ -25,203 +29,132 @@ def run_blender(games):
 
     results = []
 
-
     for game in games:
 
-        results.append(
-            run_game(game)
+        players = get_game_lineup(
+            game["game_id"]
         )
 
+        players = attach_stats(players)
 
-    return results
+        audit = []
 
+        # --------------------------
+        # Gate execution order
+        # --------------------------
 
+        gate_sequence = [
 
+            ("Gate 1 Pull", gate_pull),
 
-def run_game(game):
+            ("Gate 2 Hard Hit", gate_hard_hit),
 
+            ("Gate 3 Combined", gate_combined),
 
-    audit = []
+            ("Gate 4 Condition", gate_condition),
 
+            ("Gate 5 Pitch Edge", gate_pitch_edge),
 
-    # -------------------------
-    # STEP 1
-    # LINEUP LOAD
-    # -------------------------
+            ("Gate 6 Damage", gate_damage),
 
-    hitters = get_game_lineup(
-        game.get("game_id")
-    )
+            ("Gate 7 Finisher", gate_finisher),
 
+            ("Gate 8", gate_pass),
 
-    audit.append({
+            ("Gate 9", gate_pass),
 
-        "stage":
-        "LINEUP",
+            ("Gate 10", gate_pass),
 
-        "players":
-        len(hitters)
+            ("Gate 11", gate_pass),
 
-    })
+            ("Gate 12", gate_pass),
 
+            ("Gate 13", gate_pass),
 
+            ("Gate 14", gate_pass),
 
-    # -------------------------
-    # STEP 2
-    # STAT ATTACHMENT
-    # -------------------------
+            ("Gate 15", gate_pass),
 
-    hitters = attach_stats(
-        hitters
-    )
+            ("Gate 16", gate_pass),
 
+            ("Gate 17", gate_pass),
 
-    audit.append({
-
-        "stage":
-        "STATS",
-
-        "players":
-        len(hitters)
-
-    })
-
-
-
-    survivors = hitters
-
-
-
-    # -------------------------
-    # GATE 1-18
-    # -------------------------
-
-    pipeline = [
-
-        ("Gate 1 Pull", gate_pull),
-
-        ("Gate 2 Hard Hit", gate_hard_hit),
-
-        ("Gate 3 Combined", gate_combined),
-
-        ("Gate 4 Condition", gate_condition),
-
-        ("Gate 5 Pitch Edge", gate_pitch_edge),
-
-        ("Gate 6 Damage", gate_damage),
-
-        ("Gate 7 Finisher", gate_finisher),
-
-        ("Gate 8 Conversion", gate_pass),
-
-        ("Gate 9 Environment", gate_pass),
-
-        ("Gate 10 Opportunity", gate_pass),
-
-        ("Gate 10.5 Decoy", gate_pass),
-
-        ("Gate 11 Bullpen", gate_pass),
-
-        ("Gate 12 Ownership", gate_pass),
-
-        ("Gate 13 Numerology", gate_pass),
-
-        ("Gate 14 Protection", gate_pass),
-
-        ("Gate 15 Finish", gate_pass),
-
-        ("Gate 16 Last Elimination", gate_pass),
-
-        ("Gate 17-18 Audit Lock", gate_pass)
-
-    ]
-
-
-
-    for name, gate in pipeline:
-
-
-        before = len(
-            survivors
-        )
-
-
-        survivors = [
-
-            player
-
-            for player in survivors
-
-            if gate(player)
+            ("Gate 18", gate_pass)
 
         ]
 
+        # --------------------------
+        # Run every gate
+        # --------------------------
 
-        audit.append({
+        for gate_name, gate in gate_sequence:
 
-            "gate":
-            name,
+            before = len(players)
 
-            "before":
-            before,
+            removed = []
 
-            "after":
-            len(survivors)
+            survivors = []
+
+            for player in players:
+
+                if gate(player):
+
+                    survivors.append(player)
+
+                else:
+
+                    log_player_removal(
+
+                        removed,
+
+                        player,
+
+                        gate_name
+
+                    )
+
+            players = survivors
+
+            after = len(players)
+
+            log_gate(
+
+                audit,
+
+                gate_name,
+
+                before,
+
+                after,
+
+                removed
+
+            )
+
+            if len(players) <= 1:
+
+                break
+
+        # --------------------------
+        # Final survivor
+        # --------------------------
+
+        if players:
+
+            survivor = players[0]["name"]
+
+        else:
+
+            survivor = "NO SURVIVOR"
+
+        results.append({
+
+            "game": f"{game['away']} vs {game['home']}",
+
+            "survivor": survivor,
+
+            "audit": audit
 
         })
 
-
-
-    # -------------------------
-    # FINAL LOCK
-    # -------------------------
-
-    survivor = lock_survivor(
-        survivors
-    )
-
-
-
-    return {
-
-        "game":
-        f"{game['away']} vs {game['home']}",
-
-
-        "survivor":
-        survivor,
-
-
-        "audit":
-        audit,
-
-
-        "status":
-        "LOCKED"
-
-    }
-
-
-
-
-# ==========================================================
-# FINAL EVENT OWNER
-# ==========================================================
-
-
-def lock_survivor(players):
-
-
-    if not players:
-
-        return "NO SURVIVOR"
-
-
-
-    # temporary deterministic lock
-    # ranking layer comes later
-
-    return players[0].get(
-        "name",
-        "UNKNOWN"
-    )
+    return results
