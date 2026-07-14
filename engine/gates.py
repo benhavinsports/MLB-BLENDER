@@ -1,287 +1,268 @@
 # engine/gates.py
 
+
 # ==========================================================
 # MLB HR BLENDER vFINAL
-# TRUE ELIMINATION ENGINE
-# GATES 1–18
+# GATE MATH ENGINE
 # ==========================================================
 
 
-# ==========================================================
-# GATE 1
-# PULL %
-# ==========================================================
+def pass_through(value):
 
-def gate_1(players):
+    return value is None
 
-    survivors = []
-
-    for p in players:
-
-        pull = p.get("pull")
-
-        if pull is None:
-            survivors.append(p)
-            continue
-
-        if pull >= 65:
-            survivors.append(p)
-
-    return survivors
 
 
 # ==========================================================
-# GATE 2
-# HARD HIT
+# GATE 1 — PULL %
 # ==========================================================
 
-def gate_2(players):
+def gate_pull(player):
 
-    survivors = []
+    pull = player.get(
+        "pull"
+    )
 
-    for p in players:
-
-        hh = p.get("hard_hit")
-
-        if hh is None:
-            survivors.append(p)
-            continue
-
-        if hh >= 45:
-            survivors.append(p)
-
-    return survivors
+    if pull is None:
+        return True
 
 
-# ==========================================================
-# GATE 3
-# COMBINED TRIGGER
-# ==========================================================
+    if pull < 50:
+        return False
 
-def gate_3(players):
 
-    survivors = []
+    return True
 
-    for p in players:
 
-        pull = p.get("pull")
-        hh = p.get("hard_hit")
-
-        if pull is None or hh is None:
-            survivors.append(p)
-            continue
-
-        if pull >= 70 and hh >= 45:
-            survivors.append(p)
-
-        elif pull >= 65 and hh >= 50:
-            survivors.append(p)
-
-    return survivors
 
 
 # ==========================================================
-# GATE 4
-# CONDITION
+# GATE 2 — HARD HIT %
 # ==========================================================
 
-def gate_4(players):
+def gate_hard_hit(player):
 
-    return players
+    hh = player.get(
+        "hard_hit"
+    )
 
 
-# ==========================================================
-# GATE 5
-# PITCH EDGE
-# ==========================================================
+    if hh is None:
+        return True
 
-def gate_5(players):
 
-    survivors = []
+    if hh < 40:
+        return False
 
-    for p in players:
 
-        edge = p.get("pitch_edge")
+    return True
 
-        if edge is None:
-            survivors.append(p)
-            continue
 
-        if edge >= 0:
-            survivors.append(p)
-
-    return survivors
 
 
 # ==========================================================
-# GATE 6
-# DAMAGE PROFILE
+# GATE 3 — COMBINED TRIGGER
 # ==========================================================
 
-def gate_6(players):
+def gate_combined(player):
 
-    survivors = []
+    pull = player.get(
+        "pull"
+    )
 
-    for p in players:
-
-        barrel = p.get("barrel")
-        ev = p.get("exit_velocity")
-
-        if barrel is None or ev is None:
-            survivors.append(p)
-            continue
-
-        if barrel >= 12 and ev >= 89:
-            survivors.append(p)
-
-    return survivors
+    hh = player.get(
+        "hard_hit"
+    )
 
 
-# ==========================================================
-# GATE 7
-# FINISHER PROFILE
-# ==========================================================
+    if pull is None or hh is None:
+        return True
 
-def gate_7(players):
 
-    survivors = []
+    auto_pass = (
+        pull >= 70
+        and hh >= 45
+    )
 
-    for p in players:
 
-        checks = 0
+    secondary = (
+        pull >= 65
+        and hh >= 50
+    )
 
-        if (p.get("pull") or 0) >= 65:
-            checks += 1
 
-        if (p.get("hard_hit") or 0) >= 45:
-            checks += 1
+    return auto_pass or secondary
 
-        if (p.get("pitch_edge") or 0) >= 0:
-            checks += 1
 
-        if p.get("hr_heat"):
-            checks += 1
-
-        if (p.get("slot") or 9) <= 5:
-            checks += 1
-
-        if checks >= 4:
-            survivors.append(p)
-
-    return survivors
 
 
 # ==========================================================
-# PASS THROUGH GATES
-# (Until real data is connected)
+# GATE 4 — CONDITION
 # ==========================================================
 
-def gate_8(players):
-    return players
+def gate_condition(player):
+
+    cond = player.get(
+        "cond"
+    )
 
 
-def gate_9(players):
-    return players
+    if cond is None:
+        return True
 
 
-def gate_10(players):
-    return players
+    # boost only
+    return True
 
 
-def gate_10_5(players):
-    return players
-
-
-def gate_11(players):
-    return players
-
-
-def gate_12(players):
-    return players
-
-
-def gate_13(players):
-    return players
-
-
-def gate_14(players):
-    return players
-
-
-def gate_15(players):
-    return players
-
-
-def gate_16(players):
-    return players
-
-
-def gate_17(players):
-    return players
 
 
 # ==========================================================
-# GATE 18
-# FINAL LOCK
+# GATE 5 — PITCH EDGE
 # ==========================================================
 
-def gate_18(players):
+def gate_pitch_edge(player):
 
-    if not players:
-        return None
+    edge = player.get(
+        "pitch_edge"
+    )
 
-    return players[0]
+
+    if edge is None:
+        return True
+
+
+    if edge < 0:
+        return False
+
+
+    return True
+
+
 
 
 # ==========================================================
-# MASTER EXECUTION
+# GATE 6 — DAMAGE ENGINE
+# STRENGTHENED
 # ==========================================================
 
-def run_all_gates(players):
+def gate_damage(player):
 
-    audit = []
+    checks = []
 
-    gates = [
 
-        ("Gate 1", gate_1),
-        ("Gate 2", gate_2),
-        ("Gate 3", gate_3),
-        ("Gate 4", gate_4),
-        ("Gate 5", gate_5),
-        ("Gate 6", gate_6),
-        ("Gate 7", gate_7),
-        ("Gate 8", gate_8),
-        ("Gate 9", gate_9),
-        ("Gate 10", gate_10),
-        ("Gate 10.5", gate_10_5),
-        ("Gate 11", gate_11),
-        ("Gate 12", gate_12),
-        ("Gate 13", gate_13),
-        ("Gate 14", gate_14),
-        ("Gate 15", gate_15),
-        ("Gate 16", gate_16),
-        ("Gate 17", gate_17)
+    for key in [
 
-    ]
+        "hard_hit",
+        "barrel",
+        "exit_velocity",
+        "blast",
+        "squared_up",
+        "sweet_spot",
+        "bat_speed"
 
-    survivors = players
+    ]:
 
-    for name, gate in gates:
+        value = player.get(
+            key
+        )
 
-        before = len(survivors)
+        if value is not None:
 
-        survivors = gate(survivors)
+            checks.append(value)
 
-        after = len(survivors)
 
-        audit.append({
 
-            "gate": name,
-            "before": before,
-            "after": after
+    # if data missing, pass through
 
-        })
+    if not checks:
+        return True
 
-    winner = gate_18(survivors)
 
-    return winner, audit
+
+    damage_points = 0
+
+
+
+    if player.get("hard_hit",0) >= 45:
+        damage_points += 1
+
+
+    if player.get("barrel",0) >= 12:
+        damage_points += 1
+
+
+    if player.get("exit_velocity",0) >= 89:
+        damage_points += 1
+
+
+    if player.get("blast",0) >= 14:
+        damage_points += 1
+
+
+    if player.get("squared_up",0) >= 30:
+        damage_points += 1
+
+
+    if player.get("sweet_spot",0) >= 34:
+        damage_points += 1
+
+
+    if player.get("bat_speed",0) >= 72:
+        damage_points += 1
+
+
+
+    return damage_points >= 2
+
+
+
+
+# ==========================================================
+# GATE 7 — FINISHER PROFILE
+# STRENGTHENED
+# ==========================================================
+
+def gate_finisher(player):
+
+    passed = 0
+
+
+
+    if player.get("pull",0) >= 65:
+        passed += 1
+
+
+    if player.get("hard_hit",0) >= 45:
+        passed += 1
+
+
+    if player.get("pitch_edge",0) >= 0:
+        passed += 1
+
+
+    if player.get("hr_heat"):
+
+        passed += 1
+
+
+    if player.get("slot",9) <= 5:
+
+        passed += 1
+
+
+
+    return passed >= 4
+
+
+
+
+# ==========================================================
+# GATE 8-18
+# PASS THROUGH UNTIL DATA MODULES CONNECT
+# ==========================================================
+
+
+def gate_pass(player):
+
+    return True
