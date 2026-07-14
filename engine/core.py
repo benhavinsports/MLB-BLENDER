@@ -1,52 +1,17 @@
 # engine/core.py
 
-"""
-MLB HR BLENDER vFINAL
-
-TRUE EVENT ENGINE
-
-Pipeline:
-
-Slate
- ↓
-Gate 0
- ↓
-Gate 1
- ↓
-Gate 2
- ↓
-...
-Gate 18
- ↓
-Final Survivor
-"""
+from services.lineup import get_game_lineup
 
 
 # ==========================================================
-# MAIN ENTRY
+# MLB HR BLENDER vFINAL
+# ENGINE CONTROLLER
 # ==========================================================
 
 
 def run_blender(games):
 
-    """
-    Receives slate from app.py
-
-    Returns:
-
-    [
-        {
-            "game": "...",
-            "survivor": "...",
-            "status": "LOCKED",
-            "audit": [...]
-        }
-    ]
-
-    """
-
     results = []
-
 
     for game in games:
 
@@ -54,13 +19,12 @@ def run_blender(games):
 
         results.append(result)
 
-
     return results
 
 
 
 # ==========================================================
-# GAME PROCESSOR
+# PROCESS SINGLE GAME
 # ==========================================================
 
 
@@ -69,162 +33,90 @@ def process_game(game):
     audit = []
 
 
-    # --------------------------
-    # GATE 0
-    # TARGET LAYER
-    # --------------------------
+    # -------------------------
+    # LOAD HITTABLE POOL
+    # -------------------------
 
-    gate0 = gate_0_target_layer(game)
+    hitters = get_game_lineup(
+        game.get("game_id")
+    )
 
-    audit.append(gate0)
-
-
-
-    # --------------------------
-    # GATE 1
-    # ENVIRONMENT
-    # --------------------------
-
-    gate1 = gate_1_environment(game)
-
-    audit.append(gate1)
-
-
-
-    # --------------------------
-    # GATE 2
-    # POOL BUILD
-    # --------------------------
-
-    hitters = gate_2_pool_build(game)
 
     audit.append({
-        "gate": 2,
-        "status": "PASS",
-        "count": len(hitters)
+
+        "stage":
+            "LINEUP",
+
+        "hitters_loaded":
+            len(hitters)
+
     })
 
 
+    # -------------------------
+    # GATE 0
+    # -------------------------
 
-    # --------------------------
-    # GATES 3-15
-    # --------------------------
-    #
-    # Each gate will eliminate
-    # or pass hitters.
-    #
-    # No reranking.
-    # No star bias.
-    #
+    audit.append(
+        gate_0_target_layer(game)
+    )
 
+
+    # -------------------------
+    # GATE PIPELINE
+    # -------------------------
 
     survivors = hitters
 
 
-    survivors = run_gate(
-        3,
-        survivors,
-        gate_3_pull
-    )
+    gates = [
 
+        gate_1_environment,
 
-    survivors = run_gate(
-        4,
-        survivors,
-        gate_4_damage
-    )
+        gate_2_pool_build,
 
+        gate_3_pull,
 
-    survivors = run_gate(
-        5,
-        survivors,
-        gate_5_pitch_matchup
-    )
+        gate_4_damage,
 
+        gate_5_pitch_matchup,
 
-    survivors = run_gate(
-        6,
-        survivors,
-        gate_6_slot_weakness
-    )
+        gate_6_slot_weakness,
 
+        gate_7_rhythm,
 
-    survivors = run_gate(
-        7,
-        survivors,
-        gate_7_rhythm
-    )
+        gate_8_conversion,
 
+        gate_9_environment_check,
 
-    survivors = run_gate(
-        8,
-        survivors,
-        gate_8_conversion
-    )
+        gate_10_opportunity,
 
+        gate_10_5_decoy,
 
-    survivors = run_gate(
-        9,
-        survivors,
-        gate_9_environment
-    )
+        gate_11_bullpen,
 
+        gate_12_event_owner,
 
-    survivors = run_gate(
-        10,
-        survivors,
-        gate_10_opportunity
-    )
+        gate_13_numerology,
 
+        gate_14_protection,
 
-    survivors = run_gate(
-        "10.5",
-        survivors,
-        gate_10_5_decoy
-    )
-
-
-    survivors = run_gate(
-        11,
-        survivors,
-        gate_11_bullpen
-    )
-
-
-    survivors = run_gate(
-        12,
-        survivors,
-        gate_12_event_owner
-    )
-
-
-    survivors = run_gate(
-        13,
-        survivors,
-        gate_13_numerology
-    )
-
-
-    survivors = run_gate(
-        14,
-        survivors,
-        gate_14_protection
-    )
-
-
-    survivors = run_gate(
-        15,
-        survivors,
         gate_15_finisher
-    )
+
+    ]
+
+
+    for gate in gates:
+
+        survivors = apply_gate(
+            survivors,
+            gate,
+            audit
+        )
 
 
 
-    # --------------------------
-    # FINAL ISOLATION
-    # --------------------------
-
-    survivor = gate_18_final_lock(
+    survivor = final_lock(
         survivors
     )
 
@@ -234,11 +126,14 @@ def process_game(game):
         "game":
             f"{game['away']} vs {game['home']}",
 
+
         "survivor":
             survivor,
 
+
         "status":
             "LOCKED",
+
 
         "audit":
             audit
@@ -249,110 +144,152 @@ def process_game(game):
 
 
 # ==========================================================
-# HELPERS
+# GATE RUNNER
 # ==========================================================
 
 
-def run_gate(number, hitters, gate):
+def apply_gate(players, gate, audit):
 
-    output = []
-
-    for hitter in hitters:
-
-        if gate(hitter):
-
-            output.append(hitter)
+    before = len(players)
 
 
-    return output
+    after_players = []
+
+
+    for player in players:
+
+        if gate(player):
+
+            after_players.append(player)
+
+
+
+    audit.append({
+
+        "gate":
+            gate.__name__,
+
+        "before":
+            before,
+
+        "after":
+            len(after_players)
+
+    })
+
+
+    return after_players
+
 
 
 
 # ==========================================================
-# GATE STUBS
+# GATES
 # ==========================================================
-# Logic gets built here.
-# Nothing lives outside core.py.
 
 
 def gate_0_target_layer(game):
+
     return {
-        "gate": 0,
-        "status": "PASS"
+
+        "gate":0,
+
+        "status":"PASS"
+
     }
 
 
-def gate_1_environment(game):
-    return {
-        "gate": 1,
-        "status": "PASS"
-    }
+
+def gate_1_environment(player):
+    return True
 
 
-def gate_2_pool_build(game):
 
-    # temporary until lineup injection exists
-    return game.get(
-        "hitters",
-        []
+def gate_2_pool_build(player):
+    return True
+
+
+
+def gate_3_pull(player):
+
+    pull = player.get(
+        "pull",
+        65
     )
 
+    return pull >= 50
 
 
-def gate_3_pull(hitter):
+
+def gate_4_damage(player):
+
+    hh = player.get(
+        "hard_hit",
+        45
+    )
+
+    return hh >= 40
+
+
+
+def gate_5_pitch_matchup(player):
     return True
 
 
-def gate_4_damage(hitter):
+
+def gate_6_slot_weakness(player):
     return True
 
 
-def gate_5_pitch_matchup(hitter):
+
+def gate_7_rhythm(player):
     return True
 
 
-def gate_6_slot_weakness(hitter):
+
+def gate_8_conversion(player):
     return True
 
 
-def gate_7_rhythm(hitter):
+
+def gate_9_environment_check(player):
     return True
 
 
-def gate_8_conversion(hitter):
+
+def gate_10_opportunity(player):
     return True
 
 
-def gate_9_environment(hitter):
+
+def gate_10_5_decoy(player):
     return True
 
 
-def gate_10_opportunity(hitter):
+
+def gate_11_bullpen(player):
     return True
 
 
-def gate_10_5_decoy(hitter):
+
+def gate_12_event_owner(player):
     return True
 
 
-def gate_11_bullpen(hitter):
+
+def gate_13_numerology(player):
     return True
 
 
-def gate_12_event_owner(hitter):
+
+def gate_14_protection(player):
     return True
 
 
-def gate_13_numerology(hitter):
+
+def gate_15_finisher(player):
     return True
 
-
-def gate_14_protection(hitter):
-    return True
-
-
-def gate_15_finisher(hitter):
-    return True
 
 
 
@@ -361,343 +298,14 @@ def gate_15_finisher(hitter):
 # ==========================================================
 
 
-def gate_18_final_lock(hitters):
+def final_lock(players):
 
-    if not hitters:
+    if not players:
 
         return "NO SURVIVOR"
 
 
-    # temporary deterministic lock
-    # real ownership logic replaces this
-
-    return hitters[0].get(
+    return players[0].get(
         "name",
         "UNKNOWN"
-    )# engine/core.py
-
-from services.identity import lock_player_identity
-
-
-# ==========================================================
-# MLB HR BLENDER vFINAL
-# CORE ENGINE CONTROLLER
-# ==========================================================
-
-
-def run_slate(games):
-
-    """
-    MASTER ENGINE ENTRY
-
-    app.py calls:
-
-        results = run_slate(games)
-
-    Returns:
-
-        [
-          {
-            game,
-            survivor,
-            gates,
-            why
-          }
-        ]
-
-    """
-
-    results = []
-
-
-    for game in games:
-
-        result = run_game(game)
-
-        if result:
-
-            results.append(result)
-
-
-    return results
-
-
-
-# ==========================================================
-# SINGLE GAME ENGINE
-# ==========================================================
-
-
-def run_game(game):
-
-    """
-    Runs one matchup.
-
-    NO cross-game mixing.
-    ONE HR event owner per game.
-    """
-
-    away = game.get(
-        "away",
-        "UNKNOWN"
     )
-
-    home = game.get(
-        "home",
-        "UNKNOWN"
-    )
-
-
-    game_name = (
-        f"{away} vs {home}"
-    )
-
-
-    # ------------------------------------
-    # BUILD PLAYER POOL
-    # ------------------------------------
-
-    hitters = build_hitter_pool(game)
-
-
-    if not hitters:
-
-        return {
-            "game": game_name,
-            "survivor": "NO SURVIVOR",
-            "why": "No hitter pool",
-            "gates": []
-        }
-
-
-
-    # ------------------------------------
-    # RUN GATES 0-18
-    # ------------------------------------
-
-    survivors = []
-
-
-    gate_log = []
-
-
-    for hitter in hitters:
-
-
-        passed, logs = run_gates(
-            hitter,
-            game
-        )
-
-
-        gate_log.extend(logs)
-
-
-        if passed:
-
-            survivors.append(
-                hitter
-            )
-
-
-
-    # ------------------------------------
-    # FINAL EVENT OWNERSHIP
-    # ------------------------------------
-
-    survivor = select_event_owner(
-        survivors
-    )
-
-
-    # ------------------------------------
-    # IDENTITY LOCK
-    # ------------------------------------
-
-    final_name = lock_player_identity(
-        survivor
-    )
-
-
-    return {
-
-        "game": game_name,
-
-        "survivor": final_name,
-
-        "why":
-            "HR event recipient after Gate 0-18 elimination",
-
-        "gates":
-            gate_log
-
-    }
-
-
-
-# ==========================================================
-# HITTER POOL
-# ==========================================================
-
-
-def build_hitter_pool(game):
-
-    """
-    Receives lineup data.
-
-    Later this connects to:
-    services.lineup.py
-
-    For now it safely reads existing data.
-    """
-
-
-    hitters = (
-        game.get("hitters")
-        or
-        game.get("lineup")
-        or
-        []
-    )
-
-
-    return hitters
-
-
-
-# ==========================================================
-# GATE CONTROLLER
-# ==========================================================
-
-
-def run_gates(hitter, game):
-
-
-    logs = []
-
-
-    survived = True
-
-
-
-    for gate_number in range(0,19):
-
-
-        before = survived
-
-
-        survived = execute_gate(
-            gate_number,
-            hitter,
-            game,
-            survived
-        )
-
-
-        logs.append({
-
-            "gate":
-                gate_number,
-
-            "before":
-                before,
-
-            "after":
-                survived
-
-        })
-
-
-
-        # HARD ELIMINATION
-
-        if not survived:
-
-            break
-
-
-
-    return survived, logs
-
-
-
-
-# ==========================================================
-# GATE PLACEHOLDER CONTROLLER
-# ==========================================================
-
-
-def execute_gate(
-        gate_number,
-        hitter,
-        game,
-        current_state
-):
-
-    """
-    Gate logic gets moved here from old scattered files.
-
-    Undefined data = PASS THROUGH
-
-    No fake kills.
-    No fake boosts.
-    """
-
-
-    if not current_state:
-
-        return False
-
-
-
-    # Until gates.py is merged,
-    # everything passes through.
-
-    return True
-
-
-
-
-# ==========================================================
-# EVENT OWNERSHIP
-# ==========================================================
-
-
-def select_event_owner(
-        survivors
-):
-
-    """
-    FINAL LOCK
-
-    Not biggest star.
-    Not highest name value.
-
-    Uses available Blender score only.
-
-    """
-
-
-    if not survivors:
-
-        return {
-            "name":
-                "NO SURVIVOR"
-        }
-
-
-
-    # Use existing score if available
-
-    survivors = sorted(
-        survivors,
-        key=lambda x:
-            x.get(
-                "blender_score",
-                0
-            ),
-        reverse=True
-    )
-
-
-    return survivors[0]
