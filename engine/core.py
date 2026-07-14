@@ -1,160 +1,365 @@
 # engine/core.py
 
-from services.lineup import get_game_lineup
-from services.stats import attach_stats
-
-from engine.audit import (
-    log_gate,
-    log_player_removal
-)
-
-from engine.gates import (
-    gate_pull,
-    gate_hard_hit,
-    gate_combined,
-    gate_condition,
-    gate_pitch_edge,
-    gate_damage,
-    gate_finisher,
-    gate_pass
-)
-
 # ==========================================================
 # MLB HR BLENDER vFINAL
-# CORE CONTROLLER
+# TRUE EVENT ENGINE CONTROLLER
+#
+# Pipeline:
+#
+# Slate
+#  ↓
+# Gate 0 Target Layer
+#  ↓
+# Hitter Pool
+#  ↓
+# Gates 1-18
+#  ↓
+# Ownership
+#  ↓
+# Final Lock
+#
+# ==========================================================
+
+
+from engine.target_layer import (
+    rank_offense_targets,
+    lock_side
+)
+
+from engine.decoy import (
+    transfer_event,
+    remove_false_chalk
+)
+
+from engine.ownership import (
+    assign_event_ownership,
+    get_owner
+)
+
+from engine.final_lock import (
+    final_lock
+)
+
+
+
+# ==========================================================
+# GATE LOGGER
+# ==========================================================
+
+
+def gate_log(
+    gate,
+    before,
+    after
+):
+
+    return {
+
+        "gate": gate,
+
+        "before": before,
+
+        "after": after
+
+    }
+
+
+
+
+# ==========================================================
+# GATE EXECUTION
+# ==========================================================
+
+
+def run_gates(players):
+
+
+    logs = []
+
+
+    current = players.copy()
+
+
+
+    # -------------------------
+    # GATE 1 PULL
+    # -------------------------
+
+    before = len(current)
+
+
+    survivors = []
+
+
+    for p in current:
+
+
+        pull = p.get(
+            "pull"
+        )
+
+
+        if pull is None:
+
+            survivors.append(p)
+
+
+        elif pull >= 50:
+
+            survivors.append(p)
+
+
+
+    current = survivors
+
+
+    logs.append(
+        gate_log(
+            1,
+            before,
+            len(current)
+        )
+    )
+
+
+
+    # -------------------------
+    # GATE 2 HARD HIT
+    # -------------------------
+
+    before = len(current)
+
+
+    survivors = []
+
+
+    for p in current:
+
+
+        hh = p.get(
+            "hard_hit"
+        )
+
+
+        if hh is None:
+
+            survivors.append(p)
+
+
+        elif hh >= 40:
+
+            survivors.append(p)
+
+
+
+    current = survivors
+
+
+    logs.append(
+        gate_log(
+            2,
+            before,
+            len(current)
+        )
+    )
+
+
+
+    # -------------------------
+    # GATE 3 COMBO TRIGGER
+    # -------------------------
+
+    for p in current:
+
+
+        pull = p.get(
+            "pull"
+        )
+
+        hh = p.get(
+            "hard_hit"
+        )
+
+
+        if (
+
+            pull is not None
+
+            and hh is not None
+
+        ):
+
+
+            if pull >= 70 and hh >= 45:
+
+                p["hr_model_score"] = 100
+
+
+            elif pull >= 65 and hh >= 50:
+
+                p["hr_model_score"] = 90
+
+
+            else:
+
+                p["hr_model_score"] = 50
+
+
+
+
+    logs.append(
+
+        gate_log(
+
+            3,
+
+            len(current),
+
+            len(current)
+
+        )
+
+    )
+
+
+
+    # Remaining gates pass through
+    # until data fields are connected.
+
+
+    return current, logs
+
+
+
+
+# ==========================================================
+# MAIN BLENDER
 # ==========================================================
 
 
 def run_blender(games):
 
+
     results = []
+
+
 
     for game in games:
 
-        players = get_game_lineup(
-            game["game_id"]
+
+        # --------------------------------
+        # Gate 0 Target Layer
+        # --------------------------------
+
+
+        targets = rank_offense_targets(
+            games
         )
 
-        players = attach_stats(players)
 
-        audit = []
+        target = next(
 
-        # --------------------------
-        # Gate execution order
-        # --------------------------
+            (
 
-        gate_sequence = [
+                t for t in targets
 
-            ("Gate 1 Pull", gate_pull),
+                if t["game_id"]
 
-            ("Gate 2 Hard Hit", gate_hard_hit),
+                == game.get("game_id")
 
-            ("Gate 3 Combined", gate_combined),
+            ),
 
-            ("Gate 4 Condition", gate_condition),
+            None
 
-            ("Gate 5 Pitch Edge", gate_pitch_edge),
+        )
 
-            ("Gate 6 Damage", gate_damage),
 
-            ("Gate 7 Finisher", gate_finisher),
+        if not target:
 
-            ("Gate 8", gate_pass),
 
-            ("Gate 9", gate_pass),
+            continue
 
-            ("Gate 10", gate_pass),
 
-            ("Gate 11", gate_pass),
 
-            ("Gate 12", gate_pass),
+        locked = lock_side(
+            target
+        )
 
-            ("Gate 13", gate_pass),
 
-            ("Gate 14", gate_pass),
 
-            ("Gate 15", gate_pass),
+        # --------------------------------
+        # HITTER POOL PLACEHOLDER
+        #
+        # Connected when lineup
+        # service is added.
+        # --------------------------------
 
-            ("Gate 16", gate_pass),
 
-            ("Gate 17", gate_pass),
+        hitters = game.get(
+            "hitters",
+            []
+        )
 
-            ("Gate 18", gate_pass)
 
-        ]
 
-        # --------------------------
-        # Run every gate
-        # --------------------------
+        survivors, logs = run_gates(
+            hitters
+        )
 
-        for gate_name, gate in gate_sequence:
 
-            before = len(players)
 
-            removed = []
+        # --------------------------------
+        # DECOY
+        # --------------------------------
 
-            survivors = []
 
-            for player in players:
+        survivors = transfer_event(
+            survivors
+        )
 
-                if gate(player):
 
-                    survivors.append(player)
+        survivors = remove_false_chalk(
+            survivors
+        )
 
-                else:
 
-                    log_player_removal(
 
-                        removed,
+        # --------------------------------
+        # OWNERSHIP
+        # --------------------------------
 
-                        player,
 
-                        gate_name
+        survivors = assign_event_ownership(
+            survivors
+        )
 
-                    )
 
-            players = survivors
 
-            after = len(players)
+        owner = get_owner(
+            survivors
+        )
 
-            log_gate(
 
-                audit,
 
-                gate_name,
+        final = final_lock(
 
-                before,
+            game,
 
-                after,
+            [owner] if owner else []
 
-                removed
+        )
 
-            )
 
-            if len(players) <= 1:
 
-                break
+        final["gate_log"] = logs
 
-        # --------------------------
-        # Final survivor
-        # --------------------------
+        final["target_side"] = locked
 
-        if players:
 
-            survivor = players[0]["name"]
+        results.append(
+            final
+        )
 
-        else:
 
-            survivor = "NO SURVIVOR"
-
-        results.append({
-
-            "game": f"{game['away']} vs {game['home']}",
-
-            "survivor": survivor,
-
-            "audit": audit
-
-        })
 
     return results
