@@ -2,85 +2,65 @@
 
 import requests
 
-
 # ==========================================================
 # MLB HR BLENDER vFINAL
-# STAT DATA LAYER
+# MASTER PLAYER DATA LAYER
 # ==========================================================
-
-
-STAT_API = (
-    "https://statsapi.mlb.com/api/v1/people"
-)
-
-
 
 CACHE = {}
 
+MLB_API = "https://statsapi.mlb.com/api/v1/people"
 
 
 def get_player_stats(player_id):
 
     """
-    Returns hitter/pitcher data.
+    Returns ONE standardized player profile.
 
-    Blender consumes this.
+    Every gate reads from this.
 
-    No decisions happen here.
+    Never rename these keys.
     """
 
     if not player_id:
         return {}
 
-
-
     if player_id in CACHE:
         return CACHE[player_id]
-
-
 
     try:
 
         url = (
-            f"{STAT_API}/{player_id}"
-            "?hydrate=stats(group=[hitting,pitching])"
+            f"{MLB_API}/{player_id}"
+            "?hydrate=stats(group=[hitting,pitching],type=[season])"
         )
-
 
         data = requests.get(
             url,
             timeout=10
         ).json()
 
-
-
     except Exception:
 
         return {}
-
-
 
     people = data.get(
         "people",
         []
     )
 
-
     if not people:
-
         return {}
-
-
 
     person = people[0]
 
+    profile = {
 
+        # -------------------------
+        # Identity
+        # -------------------------
 
-    stats = {
-
-        "id":
-            player_id,
-
+        "id": player_id,
 
         "name":
             person.get(
@@ -88,74 +68,75 @@ def get_player_stats(player_id):
                 "UNKNOWN"
             ),
 
+        # -------------------------
+        # Gate Inputs
+        # -------------------------
 
-        # HR PROFILE PLACEHOLDERS
-        # Filled from real stat feeds later
+        "pull": None,
 
-        "pull":
-            None,
+        "hard_hit": None,
 
+        "barrel": None,
 
-        "hard_hit":
-            None,
+        "exit_velocity": None,
 
+        "blast": None,
 
-        "barrel":
-            None,
+        "squared_up": None,
 
+        "sweet_spot": None,
 
-        "exit_velocity":
-            None,
+        "bat_speed": None,
 
+        "pitch_edge": None,
 
-        "iso":
-            None,
+        "cond": None,
 
+        "hr_heat": None,
 
-        "hr_pa":
-            None,
+        "hr_pa": None,
 
+        "iso": None,
 
-        "pitch_edge":
-            None
+        "slg": None,
+
+        "woba": None,
+
+        "fb": None,
+
+        "pull_barrel": None,
+
+        "pua": None,
+
+        "fast_swing": None
 
     }
 
+    CACHE[player_id] = profile
+
+    return profile
 
 
-    CACHE[player_id] = stats
-
-
-    return stats
-
-
-
+# ==========================================================
+# ATTACH TO LINEUP
+# ==========================================================
 
 def attach_stats(players):
 
-    """
-    Adds stat fields to lineup players.
-    """
-
-    updated = []
-
+    enriched = []
 
     for player in players:
 
         stats = get_player_stats(
-            player.get("id")
+            player["id"]
         )
 
+        enriched.append({
 
-        merged = {
             **player,
+
             **stats
-        }
 
+        })
 
-        updated.append(
-            merged
-        )
-
-
-    return updated
+    return enriched
