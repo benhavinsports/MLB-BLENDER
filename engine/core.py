@@ -17,7 +17,7 @@ from engine.gates import (
 
 # ==========================================================
 # MLB HR BLENDER vFINAL
-# ENGINE CONTROLLER
+# SINGLE ENGINE CONTROLLER
 # ==========================================================
 
 
@@ -25,28 +25,28 @@ def run_blender(games):
 
     results = []
 
+
     for game in games:
 
         results.append(
-            process_game(game)
+            run_game(game)
         )
+
 
     return results
 
 
 
-# ==========================================================
-# SINGLE GAME
-# ==========================================================
 
+def run_game(game):
 
-def process_game(game):
 
     audit = []
 
 
     # -------------------------
-    # LOAD LINEUP
+    # STEP 1
+    # LINEUP LOAD
     # -------------------------
 
     hitters = get_game_lineup(
@@ -55,14 +55,20 @@ def process_game(game):
 
 
     audit.append({
-        "stage": "LINEUP",
-        "count": len(hitters)
+
+        "stage":
+        "LINEUP",
+
+        "players":
+        len(hitters)
+
     })
 
 
 
     # -------------------------
-    # ATTACH STATS
+    # STEP 2
+    # STAT ATTACHMENT
     # -------------------------
 
     hitters = attach_stats(
@@ -71,8 +77,13 @@ def process_game(game):
 
 
     audit.append({
-        "stage": "STATS",
-        "count": len(hitters)
+
+        "stage":
+        "STATS",
+
+        "players":
+        len(hitters)
+
     })
 
 
@@ -82,22 +93,22 @@ def process_game(game):
 
 
     # -------------------------
-    # GATE 1-18 ORDER
+    # GATE 1-18
     # -------------------------
 
-    gate_chain = [
+    pipeline = [
 
         ("Gate 1 Pull", gate_pull),
 
-        ("Gate 2 Damage", gate_hard_hit),
+        ("Gate 2 Hard Hit", gate_hard_hit),
 
-        ("Gate 3 Trigger", gate_combined),
+        ("Gate 3 Combined", gate_combined),
 
         ("Gate 4 Condition", gate_condition),
 
         ("Gate 5 Pitch Edge", gate_pitch_edge),
 
-        ("Gate 6 Damage Profile", gate_damage),
+        ("Gate 6 Damage", gate_damage),
 
         ("Gate 7 Finisher", gate_finisher),
 
@@ -107,27 +118,27 @@ def process_game(game):
 
         ("Gate 10 Opportunity", gate_pass),
 
-        ("Gate 10.5 Decoy Transfer", gate_pass),
+        ("Gate 10.5 Decoy", gate_pass),
 
         ("Gate 11 Bullpen", gate_pass),
 
-        ("Gate 12 Event Ownership", gate_pass),
+        ("Gate 12 Ownership", gate_pass),
 
         ("Gate 13 Numerology", gate_pass),
 
         ("Gate 14 Protection", gate_pass),
 
-        ("Gate 15 Finisher Check", gate_pass),
+        ("Gate 15 Finish", gate_pass),
 
         ("Gate 16 Last Elimination", gate_pass),
 
-        ("Gate 17 Audit", gate_pass)
+        ("Gate 17-18 Audit Lock", gate_pass)
 
     ]
 
 
 
-    for name, gate in gate_chain:
+    for name, gate in pipeline:
 
 
         before = len(
@@ -137,40 +148,35 @@ def process_game(game):
 
         survivors = [
 
-            hitter
+            player
 
-            for hitter in survivors
+            for player in survivors
 
-            if gate(hitter)
+            if gate(player)
 
         ]
-
-
-        after = len(
-            survivors
-        )
 
 
         audit.append({
 
             "gate":
-                name,
+            name,
 
             "before":
-                before,
+            before,
 
             "after":
-                after
+            len(survivors)
 
         })
 
 
 
     # -------------------------
-    # GATE 18 FINAL LOCK
+    # FINAL LOCK
     # -------------------------
 
-    survivor = final_lock(
+    survivor = lock_survivor(
         survivors
     )
 
@@ -179,19 +185,19 @@ def process_game(game):
     return {
 
         "game":
-            f"{game['away']} vs {game['home']}",
+        f"{game['away']} vs {game['home']}",
 
 
         "survivor":
-            survivor,
-
-
-        "status":
-            "LOCKED",
+        survivor,
 
 
         "audit":
-            audit
+        audit,
+
+
+        "status":
+        "LOCKED"
 
     }
 
@@ -203,11 +209,13 @@ def process_game(game):
 # ==========================================================
 
 
-def final_lock(players):
+def lock_survivor(players):
+
 
     if not players:
 
         return "NO SURVIVOR"
+
 
 
     # temporary deterministic lock
