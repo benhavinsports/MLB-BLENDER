@@ -342,3 +342,37 @@ def damage_score(player):
         3
 
     )
+# ==========================================================
+# CORE PIPELINE CONNECTION
+# ==========================================================
+
+def attach_stats(hitters):
+
+    """
+    Attaches hitter stat profiles
+    before Gate 1-18.
+
+    Core.py calls this function.
+
+    No filtering here.
+    No picks here.
+    """
+
+    updated = []
+
+
+    for hitter in hitters:
+
+        stats = hitter.get(
+            "stats",
+            {}
+        )
+
+        hitter["stats"] = stats
+
+        updated.append(
+            hitter
+        )
+
+
+    return updated
