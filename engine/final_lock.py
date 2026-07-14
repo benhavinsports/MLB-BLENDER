@@ -4,37 +4,20 @@
 # MLB HR BLENDER vFINAL
 # GATE 18 — FINAL HR SURVIVOR LOCK
 #
-# Final output layer.
-#
-# Rule:
-# Exactly ONE hitter per game.
+# Output:
+# Exactly ONE HR event recipient per game
 #
 # No:
-# - Top 3
-# - Rankings
-# - Alternates
-# - Hedge picks
+# - rankings
+# - alternates
+# - hedges
+# - star bias
 #
 # ==========================================================
 
 
 
-def final_lock(
-    survivors,
-    game
-):
-
-
-    """
-    Final event ownership lock.
-
-    Input:
-        survivors after all gates
-
-    Output:
-        single locked HR recipient
-    """
-
+def final_lock(game, survivors):
 
 
     if not survivors:
@@ -43,22 +26,15 @@ def final_lock(
         return {
 
             "game":
-
-                game_name(game),
-
+                format_game(game),
 
             "survivor":
-
                 "NONE",
 
-
             "why":
-
                 "NO VALID SURVIVOR",
 
-
             "status":
-
                 "FAILED"
 
         }
@@ -66,29 +42,10 @@ def final_lock(
 
 
     # ======================================================
-    # FINAL EVENT OWNERSHIP FILTER
-    #
-    # No star bias.
-    # No name value.
-    #
-    # Uses accumulated gate score.
+    # FINAL SINGLE OWNER
     # ======================================================
 
-
-    locked = sorted(
-
-        survivors,
-
-        key=lambda x:
-
-            x.get(
-                "gate_score",
-                0
-            ),
-
-        reverse=True
-
-    )[0]
+    player = survivors[0]
 
 
 
@@ -96,46 +53,45 @@ def final_lock(
 
 
         "game":
-
-            game_name(
-                game
-            ),
+            format_game(game),
 
 
         "survivor":
-
-            locked.get(
+            player.get(
                 "player",
                 "UNKNOWN"
             ),
 
 
         "team":
-
-            locked.get(
+            player.get(
                 "team",
                 "UNKNOWN"
             ),
 
 
         "why":
-
-            locked.get(
+            player.get(
                 "event_reason",
                 "HR EVENT RECIPIENT"
             ),
 
 
         "gate_score":
-
-            locked.get(
+            player.get(
                 "gate_score",
                 0
             ),
 
 
-        "status":
+        "ownership_score":
+            player.get(
+                "ownership_score",
+                0
+            ),
 
+
+        "status":
             "LOCKED"
 
     }
@@ -145,11 +101,11 @@ def final_lock(
 
 
 # ==========================================================
-# GAME FORMATTER
+# GAME FORMAT
 # ==========================================================
 
 
-def game_name(game):
+def format_game(game):
 
 
     if not game:
@@ -158,16 +114,16 @@ def game_name(game):
 
 
 
-    away = game.get(
-        "away",
-        "UNKNOWN"
+    return (
+
+        str(game.get("away", "UNKNOWN"))
+
+        +
+
+        " vs "
+
+        +
+
+        str(game.get("home", "UNKNOWN"))
+
     )
-
-
-    home = game.get(
-        "home",
-        "UNKNOWN"
-    )
-
-
-    return f"{away} vs {home}"
