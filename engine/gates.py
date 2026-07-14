@@ -1,33 +1,46 @@
 # engine/gates.py
 
-
 # ==========================================================
 # MLB HR BLENDER vFINAL
-# GATE MATH ENGINE
+# GATE ENGINE
+#
+# Every gate:
+# PASS = keep player
+# FAIL = eliminate player
+#
+# No rankings.
+# No star bias.
 # ==========================================================
 
 
-def pass_through(value):
 
-    return value is None
+def value(player, key, default=0):
+
+    data = player.get(key)
+
+    if data is None:
+        return default
+
+    return data
 
 
 
 # ==========================================================
-# GATE 1 — PULL %
+# GATE 1
+# PULL PROFILE
 # ==========================================================
+
 
 def gate_pull(player):
 
-    pull = player.get(
+    pull = value(
+        player,
         "pull"
     )
-
-    if pull is None:
-        return True
 
 
     if pull < 50:
+
         return False
 
 
@@ -35,23 +48,22 @@ def gate_pull(player):
 
 
 
+# ==========================================================
+# GATE 2
+# HARD HIT DAMAGE
+# ==========================================================
 
-# ==========================================================
-# GATE 2 — HARD HIT %
-# ==========================================================
 
 def gate_hard_hit(player):
 
-    hh = player.get(
+    hh = value(
+        player,
         "hard_hit"
     )
 
 
-    if hh is None:
-        return True
-
-
     if hh < 40:
+
         return False
 
 
@@ -59,67 +71,84 @@ def gate_hard_hit(player):
 
 
 
+# ==========================================================
+# GATE 3
+# COMBINED TRIGGER
+# ==========================================================
 
-# ==========================================================
-# GATE 3 — COMBINED TRIGGER
-# ==========================================================
 
 def gate_combined(player):
 
-    pull = player.get(
+    pull = value(
+        player,
         "pull"
     )
 
-    hh = player.get(
+    hh = value(
+        player,
         "hard_hit"
     )
 
 
-    if pull is None or hh is None:
-        return True
-
-
     auto_pass = (
+
         pull >= 70
-        and hh >= 45
+
+        and
+
+        hh >= 45
+
     )
 
 
     secondary = (
+
         pull >= 65
-        and hh >= 50
+
+        and
+
+        hh >= 50
+
     )
 
 
-    return auto_pass or secondary
+    if auto_pass or secondary:
 
-
-
-
-# ==========================================================
-# GATE 4 — CONDITION
-# ==========================================================
-
-def gate_condition(player):
-
-    cond = player.get(
-        "cond"
-    )
-
-
-    if cond is None:
         return True
 
 
-    # boost only
+
+    # pass through if missing data
+
+    if pull == 0 or hh == 0:
+
+        return True
+
+
+
+    return False
+
+
+
+# ==========================================================
+# GATE 4
+# CONDITION PROFILE
+# BOOST ONLY
+# ==========================================================
+
+
+def gate_condition(player):
+
     return True
 
 
 
 
 # ==========================================================
-# GATE 5 — PITCH EDGE
+# GATE 5
+# PITCH EDGE
 # ==========================================================
+
 
 def gate_pitch_edge(player):
 
@@ -129,11 +158,15 @@ def gate_pitch_edge(player):
 
 
     if edge is None:
+
         return True
 
 
+
     if edge < 0:
+
         return False
+
 
 
     return True
@@ -142,124 +175,118 @@ def gate_pitch_edge(player):
 
 
 # ==========================================================
-# GATE 6 — DAMAGE ENGINE
-# STRENGTHENED
+# GATE 6
+# DAMAGE PROFILE
 # ==========================================================
+
 
 def gate_damage(player):
 
-    checks = []
+    barrel = value(
+        player,
+        "barrel"
+    )
 
 
-    for key in [
-
-        "hard_hit",
-        "barrel",
-        "exit_velocity",
-        "blast",
-        "squared_up",
-        "sweet_spot",
-        "bat_speed"
-
-    ]:
-
-        value = player.get(
-            key
-        )
-
-        if value is not None:
-
-            checks.append(value)
+    ev = value(
+        player,
+        "exit_velocity"
+    )
 
 
+    hh = value(
+        player,
+        "hard_hit"
+    )
 
-    # if data missing, pass through
 
-    if not checks:
+    damage = (
+
+        barrel * 0.4
+
+        +
+
+        ev * 0.3
+
+        +
+
+        hh * 0.3
+
+    )
+
+
+    if damage >= 45:
+
         return True
 
 
 
-    damage_points = 0
+    # missing data pass-through
+
+    if barrel == 0 and ev == 0:
+
+        return True
 
 
 
-    if player.get("hard_hit",0) >= 45:
-        damage_points += 1
-
-
-    if player.get("barrel",0) >= 12:
-        damage_points += 1
-
-
-    if player.get("exit_velocity",0) >= 89:
-        damage_points += 1
-
-
-    if player.get("blast",0) >= 14:
-        damage_points += 1
-
-
-    if player.get("squared_up",0) >= 30:
-        damage_points += 1
-
-
-    if player.get("sweet_spot",0) >= 34:
-        damage_points += 1
-
-
-    if player.get("bat_speed",0) >= 72:
-        damage_points += 1
-
-
-
-    return damage_points >= 2
+    return False
 
 
 
 
 # ==========================================================
-# GATE 7 — FINISHER PROFILE
-# STRENGTHENED
+# GATE 7
+# FINISHER PROFILE
 # ==========================================================
+
 
 def gate_finisher(player):
 
-    passed = 0
+
+    checks = 0
 
 
 
-    if player.get("pull",0) >= 65:
-        passed += 1
+    if value(player,"pull") >= 65:
 
-
-    if player.get("hard_hit",0) >= 45:
-        passed += 1
-
-
-    if player.get("pitch_edge",0) >= 0:
-        passed += 1
-
-
-    if player.get("hr_heat"):
-
-        passed += 1
-
-
-    if player.get("slot",9) <= 5:
-
-        passed += 1
+        checks += 1
 
 
 
-    return passed >= 4
+    if value(player,"hard_hit") >= 45:
+
+        checks += 1
+
+
+
+    if value(player,"pitch_edge") >= 0:
+
+        checks += 1
+
+
+
+    if player.get(
+        "hr_heat"
+    ):
+
+        checks += 1
+
+
+
+    if value(player,"slot",9) <= 5:
+
+        checks += 1
+
+
+
+    return checks >= 4
 
 
 
 
 # ==========================================================
 # GATE 8-18
-# PASS THROUGH UNTIL DATA MODULES CONNECT
+# PASS THROUGH UNTIL DATA EXISTS
 # ==========================================================
 
 
