@@ -22,8 +22,6 @@ def build_hitter_profile(player, stat_data):
     with HR finisher metrics.
     """
 
-
-
     return {
 
 
@@ -35,6 +33,13 @@ def build_hitter_profile(player, stat_data):
 
 
         "name":
+
+            player.get(
+                "name"
+            ),
+
+
+        "player":
 
             player.get(
                 "name"
@@ -214,8 +219,6 @@ def finisher_profile(player):
 
     """
 
-
-
     hr_pa = player.get(
         "hr_pa"
     )
@@ -257,7 +260,7 @@ def finisher_profile(player):
 
 
 
-    # undefined data does not kill
+    # Undefined data does not kill
 
     return True
 
@@ -273,7 +276,6 @@ def damage_score(player):
 
 
     """
-
     Gate 6 support
 
     Uses:
@@ -286,35 +288,34 @@ def damage_score(player):
 
     """
 
-
     hh = player.get(
         "hard_hit",
         0
-    )
+    ) or 0
 
 
     ev = player.get(
         "ev",
         0
-    )
+    ) or 0
 
 
     barrel = player.get(
         "barrel",
         0
-    )
+    ) or 0
 
 
     blast = player.get(
         "blast",
         0
-    )
+    ) or 0
 
 
     squared = player.get(
         "squared_up",
         0
-    )
+    ) or 0
 
 
 
@@ -342,37 +343,65 @@ def damage_score(player):
         3
 
     )
+
+
+
+
+
 # ==========================================================
 # CORE PIPELINE CONNECTION
 # ==========================================================
 
+
 def attach_stats(hitters):
 
-    """
-    Attaches hitter stat profiles
-    before Gate 1-18.
 
-    Core.py calls this function.
-
-    No filtering here.
-    No picks here.
     """
+    Converts raw lineup hitters
+    into Blender hitter profiles.
+
+    Core.py calls this.
+
+    No filtering.
+    No picks.
+    No rankings.
+    """
+
+
 
     updated = []
 
 
+
     for hitter in hitters:
 
-        stats = hitter.get(
+
+        stat_data = hitter.get(
+
             "stats",
+
             {}
+
         )
 
-        hitter["stats"] = stats
+
+
+        profile = build_hitter_profile(
+
+            hitter,
+
+            stat_data
+
+        )
+
+
 
         updated.append(
-            hitter
+
+            profile
+
         )
+
 
 
     return updated
