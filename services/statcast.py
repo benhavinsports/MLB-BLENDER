@@ -84,6 +84,55 @@ def _first_csv(url_param_pairs: list[tuple[str, dict]]) -> list[dict]:
     return []
 
 
+def _blender_pull_profile(
+    pull_percent: float | None,
+    flyball_percent: float | None,
+    barrel_percent: float | None,
+) -> dict:
+    """Translate raw Savant batted-ball rates into Blender pull fields.
+
+    Savant's ``pull_percent`` is a raw batted-ball share (normally around
+    30-50), while the engine's ``pull`` field is a 0-100 pull-air identity
+    index. Feeding the raw rate directly into Gate 3 caused complete pools to
+    be removed by the engine's >=50 floor.
+
+    The index preserves the locked Blender support lanes:
+      raw pull 45, fly-ball 40, pull-air 28, pull-barrel 10.
+    Reaching all four support marks produces a 65 PASS profile. Missing data
+    is reweighted rather than treated as zero.
+    """
+    pua = None
+    if pull_percent is not None and flyball_percent is not None:
+        pua = pull_percent * flyball_percent / 100.0
+
+    pull_barrel = None
+    if pull_percent is not None and barrel_percent is not None:
+        pull_barrel = pull_percent * barrel_percent / 100.0
+
+    lanes = [
+        (pull_percent, 45.0, 0.50),
+        (flyball_percent, 40.0, 0.20),
+        (pua, 28.0, 0.20),
+        (pull_barrel, 10.0, 0.10),
+    ]
+    available = [(value, floor, weight) for value, floor, weight in lanes if value is not None]
+    pull_index = None
+    if available:
+        total_weight = sum(weight for _, _, weight in available)
+        support = sum(
+            min(1.55, max(0.0, value / floor)) * weight
+            for value, floor, weight in available
+        ) / total_weight
+        pull_index = round(min(100.0, support * 65.0), 3)
+
+    return {
+        "pull": pull_index,
+        "pull_percent": pull_percent,
+        "pua": round(pua, 3) if pua is not None else None,
+        "pull_barrel": round(pull_barrel, 3) if pull_barrel is not None else None,
+    }
+
+
 def _identity(row: dict) -> tuple[int | None, str]:
     player_id = _number(
         _key(
@@ -160,6 +209,13 @@ def load_statcast_hitter_maps(season: int) -> tuple[dict[int, dict], dict[str, d
     for row in rows:
         pa = _number(_key(row, "pa", "plate appearances"))
         hr = _number(_key(row, "home_run", "home runs", "hr"))
+        pull_percent = _number(_key(row, "pull_percent", "pull %", "pull%"))
+        hard_hit = _number(_key(row, "hard_hit_percent", "hard hit %", "hardhit%"))
+        barrel = _number(
+            _key(row, "barrel_batted_rate", "barrel %", "barrel%", "brls/bbe %")
+        )
+        flyball = _number(_key(row, "flyballs_percent", "fb%", "fb %"))
+        pull_profile = _blender_pull_profile(pull_percent, flyball, barrel)
         _put(
             by_id,
             by_name,
@@ -168,18 +224,16 @@ def load_statcast_hitter_maps(season: int) -> tuple[dict[int, dict], dict[str, d
                 "pa": pa,
                 "hr": hr,
                 "hr_pa": (hr / pa) if hr is not None and pa else None,
-                "pull": _number(_key(row, "pull_percent", "pull %", "pull%")),
-                "hard_hit": _number(_key(row, "hard_hit_percent", "hard hit %", "hardhit%")),
-                "barrel": _number(
-                    _key(row, "barrel_batted_rate", "barrel %", "barrel%", "brls/bbe %")
-                ),
+                **pull_profile,
+                "hard_hit": hard_hit,
+                "barrel": barrel,
                 "ev": _number(
                     _key(row, "exit_velocity_avg", "avg ev (mph)", "avg exit velocity", "avg ev")
                 ),
                 "sweet_spot": _number(
                     _key(row, "sweet_spot_percent", "la sweet-spot %", "sweet spot %", "la swsp%")
                 ),
-                "fb": _number(_key(row, "flyballs_percent", "fb%", "fb %")),
+                "fb": flyball,
                 "iso": _number(_key(row, "isolated_power", "iso")),
                 "slg": _number(_key(row, "slg_percent", "slg")),
                 "woba": _number(_key(row, "woba")),
