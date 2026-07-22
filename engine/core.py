@@ -133,11 +133,13 @@ def run_blender(games: list[dict], season: int) -> list[dict]:
             if entry.get("gate") == 10.5:
                 entry["before"] = ownership_count
                 entry["after"] = len(survivors)
-                entry["note"] = "decoy transfer executed"
+                entry["note"] = "adjacent/decoy transfer executed after ownership"
             if entry.get("gate") == 12:
                 entry["before"] = ownership_count
                 entry["after"] = ownership_count
                 entry["note"] = "ownership scores assigned"
+        if not audit.get("passed"):
+            owner = None
         result=final_lock(game,owner,audit)
         result["audit"]=logs
         result["target_side"]=target
