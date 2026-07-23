@@ -60,16 +60,17 @@ def _number(value):
 
 
 def _rate(value):
-    """Return a percentage on a 0-100 scale.
+    """Return a percentage on a 0-100 scale without double-scaling rates.
 
-    Savant leaderboards are inconsistent: some downloads return 0.347 while
-    others return 34.7 for the same rate. The old engine treated 0.347 as
-    0.347%, which caused Gate 3 to erase almost every lineup.
+    Savant CSVs may expose a rate as either ``0.347`` or ``34.7%``. A literal
+    percent sign means the value is already on the 0-100 scale. Only decimal
+    fractions in the closed interval [-1, 1] are expanded.
     """
     number = _number(value)
     if number is None:
         return None
-    if -1.5 <= number <= 1.5:
+    raw = str(value or "")
+    if "%" not in raw and -1.0 <= number <= 1.0:
         number *= 100.0
     return number
 
@@ -124,24 +125,30 @@ def _first_csv(url_param_pairs: list[tuple[str, dict | list[tuple[str, object]]]
 
 def _blender_pull_profile(
     pull_percent: float | None,
-    flyball_percent: float | None,
+    air_percent: float | None,
     pull_air_percent: float | None = None,
     pull_barrel_percent: float | None = None,
 ) -> dict:
-    """Build the 0-100 Blender Pull-Air identity index from real rate fields.
+    """Build the Blender Pull-Air identity from the actual support lanes.
 
-    The user's locked 50/55/65/70 thresholds apply to this identity index, not
-    raw league-scale Pull%. Hitting every available support mark equals 65.
+    ``air_percent`` is AIR% (FB + LD + PU), not standalone FB%. The engine's
+    locked support floor is AIR >= 40, so substituting FB% here collapses valid
+    lineups before the matchup gates ever run.
     """
-    lanes = [
+    core_lanes = [
         (pull_percent, 45.0, 0.45),
-        (flyball_percent, 40.0, 0.20),
+        (air_percent, 40.0, 0.20),
         (pull_air_percent, 28.0, 0.30),
-        (pull_barrel_percent, 10.0, 0.05),
     ]
-    available = [(value, floor, weight) for value, floor, weight in lanes if value is not None]
+    optional_lanes = [(pull_barrel_percent, 10.0, 0.05)]
+
+    # Do not manufacture a complete identity from partial data. Pull AIR% is
+    # an overlap metric and cannot be derived by multiplying Pull% and AIR%.
     pull_index = None
-    if available:
+    if all(value is not None for value, _, _ in core_lanes):
+        available = core_lanes + [
+            lane for lane in optional_lanes if lane[0] is not None
+        ]
         total_weight = sum(weight for _, _, weight in available)
         support = sum(
             min(1.55, max(0.0, float(value) / floor)) * weight
@@ -203,6 +210,7 @@ def load_statcast_hitter_maps(season: int) -> tuple[dict[int, dict], dict[str, d
             "sweet_spot_percent",
             "pull_percent",
             "flyballs_percent",
+            "groundballs_percent",
         ]
     )
     common = {
@@ -235,7 +243,23 @@ def load_statcast_hitter_maps(season: int) -> tuple[dict[int, dict], dict[str, d
         pull_percent = _rate(_key(row, "pull_percent", "pull %", "pull%"))
         hard_hit = _rate(_key(row, "hard_hit_percent", "hard hit %", "hardhit%"))
         barrel = _rate(_key(row, "barrel_batted_rate", "barrel %", "barrel%", "brls/bbe %"))
-        flyball = _rate(_key(row, "flyballs_percent", "fb%", "fb %"))
+        flyball_percent = _rate(_key(row, "flyballs_percent", "fly_ball_rate", "fb%", "fb %"))
+        groundball_percent = _rate(
+            _key(row, "groundballs_percent", "ground_ball_rate", "groundball_rate", "gb%", "gb %")
+        )
+        air_percent = _rate(_key(row, "air_percent", "air_rate", "air %", "air%"))
+        air_source = None
+        if air_percent is not None:
+            air_source = "SAVANT_DIRECT_AIR"
+        elif groundball_percent is not None:
+            air_percent = max(0.0, min(100.0, 100.0 - groundball_percent))
+            air_source = "SAVANT_DERIVED_100_MINUS_GB"
+        elif flyball_percent is not None:
+            # Last-resort fallback only. The batted-ball leaderboard normally
+            # overwrites this profile with direct AIR% later in the merge.
+            air_percent = flyball_percent
+            air_source = "SAVANT_FB_FALLBACK"
+
         _put(
             by_id,
             by_name,
@@ -244,12 +268,18 @@ def load_statcast_hitter_maps(season: int) -> tuple[dict[int, dict], dict[str, d
                 "pa": pa,
                 "hr": hr,
                 "hr_pa": (hr / pa) if hr is not None and pa else None,
-                **_blender_pull_profile(pull_percent, flyball),
+                **_blender_pull_profile(pull_percent, air_percent),
                 "hard_hit": hard_hit,
                 "barrel": barrel,
                 "ev": _number(_key(row, "exit_velocity_avg", "avg ev (mph)", "avg exit velocity", "avg ev")),
                 "sweet_spot": _rate(_key(row, "sweet_spot_percent", "la sweet-spot %", "sweet spot %", "la swsp%")),
-                "fb": flyball,
+                # Backward-compatible field consumed by the gates. It now
+                # correctly carries AIR%, not standalone FB%.
+                "fb": air_percent,
+                "air_percent": air_percent,
+                "flyball_percent": flyball_percent,
+                "groundball_percent": groundball_percent,
+                "air_source": air_source,
                 "iso": _number(_key(row, "isolated_power", "iso")),
                 "slg": _number(_key(row, "slg_percent", "slg")),
                 "woba": _number(_key(row, "woba")),
@@ -295,7 +325,23 @@ def load_batted_ball_maps(season: int) -> tuple[dict[int, dict], dict[str, dict]
     by_name: dict[str, dict] = {}
     for row in rows:
         pull_percent = _rate(_key(row, "pull_rate", "pull_percent", "pull %", "pull%"))
-        flyball_percent = _rate(_key(row, "fly_ball_rate", "fb_rate", "flyballs_percent", "fb %", "fb%"))
+        flyball_percent = _rate(
+            _key(row, "fly_ball_rate", "fb_rate", "flyballs_percent", "fb %", "fb%")
+        )
+        groundball_percent = _rate(
+            _key(row, "ground_ball_rate", "groundball_rate", "groundballs_percent", "gb %", "gb%")
+        )
+        air_percent = _rate(_key(row, "air_rate", "air_percent", "air %", "air%"))
+        air_source = None
+        if air_percent is not None:
+            air_source = "SAVANT_BATTED_BALL_DIRECT_AIR"
+        elif groundball_percent is not None:
+            air_percent = max(0.0, min(100.0, 100.0 - groundball_percent))
+            air_source = "SAVANT_BATTED_BALL_100_MINUS_GB"
+        elif flyball_percent is not None:
+            air_percent = flyball_percent
+            air_source = "SAVANT_BATTED_BALL_FB_FALLBACK"
+
         pull_air_percent = _rate(
             _key(row, "pull_air_rate", "pull air %", "pull air%", "pull_air_percent")
         )
@@ -309,11 +355,15 @@ def load_batted_ball_maps(season: int) -> tuple[dict[int, dict], dict[str, dict]
             {
                 **_blender_pull_profile(
                     pull_percent,
-                    flyball_percent,
+                    air_percent,
                     pull_air_percent,
                     pull_barrel_percent,
                 ),
-                "fb": flyball_percent,
+                "fb": air_percent,
+                "air_percent": air_percent,
+                "flyball_percent": flyball_percent,
+                "groundball_percent": groundball_percent,
+                "air_source": air_source,
                 "pull_air_source": "SAVANT_BATTED_BALL_PROFILE",
             },
         )
@@ -690,7 +740,7 @@ def get_game_matchup_profiles(
     # Middle-third strike-zone locations are the clearest repeatable mistake
     # lane available in the pitch-level feed.  This is not guessed from a
     # pitcher's ERA; it is calculated from his actual Statcast locations.
-    heart_zones = {2, 5, 8}
+    heart_zones = {4, 5, 6}
     heart_usage_raw = {zone: weight for zone, weight in zone_usage.items() if zone in heart_zones}
     pitcher_mistake_rate = round(sum(heart_usage_raw.values()) * 100.0, 3) if zone_usage else None
     heart_total = sum(heart_usage_raw.values())
