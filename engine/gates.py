@@ -25,6 +25,11 @@ def _number(value, default: float | None = None) -> float | None:
         return default
 
 
+def _metric(value, default: float) -> float:
+    number = _number(value)
+    return default if number is None else number
+
+
 def _name(player: Player) -> str:
     return str(player.get("name") or player.get("player") or "UNKNOWN")
 
@@ -42,12 +47,6 @@ def _apply(
     *,
     note=None,
 ) -> list[Player]:
-    """Apply a real elimination gate.
-
-    Missing information is never treated as a pass.  A gate is allowed to
-    empty the pool; core.py then returns the explicit WHO result instead of
-    inventing a hitter or silently restoring somebody who failed.
-    """
     before = len(players)
     kept: list[Player] = []
     removed: list[dict] = []
@@ -70,12 +69,10 @@ def _separator(
     *,
     note=None,
 ) -> list[Player]:
-    """Use a signal only when it genuinely separates the remaining pool.
+    """Use a support signal only when it separates the live pool.
 
-    This is for support gates such as recent rhythm and protection.  When the
-    signal is loaded but nobody owns it, the gate records NO_SEPARATION and
-    preserves the incoming pool.  That is not a missing-data pass and it never
-    creates a winner.
+    This never creates a survivor. If nobody owns the signal, the incoming
+    pool remains intact and the audit records NO_SEPARATION.
     """
     before = len(players)
     if not players:
@@ -131,70 +128,172 @@ def _universe_score(player: Player, game: dict) -> int:
     return int(hashlib.sha256(seed.encode("utf-8")).hexdigest()[:8], 16) % 1000
 
 
-def _finisher_score(player: Player) -> float | None:
-    required = ("hr_pa", "iso", "damage_score", "pull", "pitch_edge")
-    if _missing(player, *required):
-        return None
+def _finisher_tier(player: Player) -> tuple[int, str]:
+    """Discrete finisher lanes. No blended ranking score is created here."""
+    missing = _missing(player, "hr_pa", "iso", "damage_score", "fb")
+    if missing:
+        return 0, f"missing finisher data: {', '.join(missing)}"
 
-    hr_pa = max(0.0, float(player["hr_pa"]))
-    iso = max(0.0, float(player["iso"]))
-    damage = max(0.0, min(100.0, float(player["damage_score"])))
-    pull = max(0.0, min(100.0, float(player["pull"])))
-    pitch_edge = max(-1.5, min(1.5, float(player["pitch_edge"])))
+    hr_pa = float(player["hr_pa"])
+    iso = float(player["iso"])
+    damage = float(player["damage_score"])
+    air = float(player["fb"])
+    pull = _metric(player.get("pull"), 0.0)
+    hard_hit = _metric(player.get("hard_hit"), 0.0)
+    barrel = _metric(player.get("barrel"), 0.0)
 
-    score = (
-        min(1.35, hr_pa / 0.050) * 28.0
-        + min(1.35, iso / 0.220) * 24.0
-        + (damage / 100.0) * 24.0
-        + min(1.25, pull / 70.0) * 14.0
-        + ((pitch_edge + 1.5) / 3.0) * 10.0
+    # Locked Core finisher lane.
+    if hr_pa >= 0.050 and iso >= 0.200 and damage >= 70.0 and air >= 30.0:
+        return 3, "CORE_FINISHER"
+
+    # Primary event-capable lane.
+    if (
+        hr_pa >= 0.035
+        and iso >= 0.180
+        and damage >= 55.0
+        and hard_hit >= 40.0
+        and air >= 30.0
+    ):
+        return 2, "PRIMARY_FINISHER"
+
+    # WHO/chaos floor. It is weaker than Core and cannot replace a higher tier.
+    if (
+        hr_pa >= 0.025
+        and iso >= 0.150
+        and damage >= 45.0
+        and air >= 30.0
+        and ((pull >= 60.0 and hard_hit >= 40.0) or barrel >= 10.0)
+    ):
+        return 1, "WHO_CHAOS_FINISHER"
+
+    return 0, "FINISHER_FLOOR_FAILED"
+
+
+def _pressure_flags(player: Player, target: dict, environment: dict) -> dict:
+    """Context flags only. They are never added into a weighted score."""
+    return {
+        "top_four_slot": int(player.get("slot") or 99) <= 4,
+        "recent_heat": player.get("hr_heat") is True,
+        "positive_protection": _metric(player.get("protection"), -1.0) > 0.0,
+        "high_bullpen_risk": _metric(player.get("bullpen_risk"), 0.0) >= 5.0,
+        "high_pitcher_leak": _metric(target.get("leak_score"), 0.0) >= 0.75,
+        "positive_environment": _metric(environment.get("environment_score"), 0.0) > 0.0,
+    }
+
+
+def _matchup_total(player: Player) -> float:
+    return (
+        _metric(player.get("pitch_type_edge"), -99.0)
+        + _metric(player.get("zone_edge"), -99.0)
+        + _metric(player.get("mistake_edge"), -99.0)
     )
-    return round(min(100.0, score), 3)
-
-
-def _pressure_score(player: Player, target: dict, environment: dict) -> float:
-    """Secondary context only. Gate 16 never places this above finisher."""
-    slot = int(player.get("slot") or 9)
-    access = max(0.0, 8.0 - slot) * 0.7
-    rhythm = 2.0 if player.get("hr_heat") is True else 0.0
-    protection = max(0.0, float(player.get("protection") or 0.0)) * 1.5
-    bullpen = max(0.0, float(player.get("bullpen_risk") or 0.0)) * 0.35
-    pitcher = max(0.0, float(target.get("leak_score") or 0.0)) * 0.5
-    env = max(-2.0, min(3.0, float(environment.get("environment_score") or 0.0))) * 0.4
-    return round(access + rhythm + protection + bullpen + pitcher + env, 3)
 
 
 def _transfer_candidate(players: list[Player]) -> dict | None:
+    """Flag only a legitimate adjacent transfer; never select a winner here."""
     if len(players) < 2:
         return None
+
+    # Primary is the highest finisher tier, then the better lineup-access lane.
     ordered = sorted(
         players,
-        key=lambda p: (
-            _number(p.get("pre_finisher_score"), -999.0),
-            _number(p.get("damage_score"), -999.0),
-            _number(p.get("pitch_edge"), -999.0),
+        key=lambda player: (
+            int(player.get("finisher_tier") or 0),
+            -int(player.get("slot") or 99),
         ),
         reverse=True,
     )
-    primary, adjacent = ordered[0], ordered[1]
-    top_score = float(primary.get("pre_finisher_score") or 0.0)
-    second_score = float(adjacent.get("pre_finisher_score") or 0.0)
-    gap = top_score - second_score
-    same_lane = abs(int(primary.get("slot") or 99) - int(adjacent.get("slot") or 99)) <= 1
-    stronger_matchup = float(adjacent.get("pitch_edge") or -999.0) > float(primary.get("pitch_edge") or -999.0) + 0.15
-    stronger_rhythm = adjacent.get("hr_heat") is True and primary.get("hr_heat") is not True
-    obvious_primary = float(primary.get("hr_model_score") or 0.0) >= 80.0 or float(primary.get("hr") or 0.0) >= 20.0
+    primary = ordered[0]
+    primary_tier = int(primary.get("finisher_tier") or 0)
+    primary_matchup = _matchup_total(primary)
 
-    if same_lane and obvious_primary and gap <= 5.0 and (stronger_matchup or stronger_rhythm):
-        adjacent["transfer_candidate"] = True
-        return {
-            "primary": _name(primary),
-            "adjacent": _name(adjacent),
-            "finisher_gap": round(gap, 3),
-            "stronger_matchup": stronger_matchup,
-            "stronger_rhythm": stronger_rhythm,
-        }
+    for adjacent in ordered[1:]:
+        if abs(int(primary.get("slot") or 99) - int(adjacent.get("slot") or 99)) > 1:
+            continue
+        if int(adjacent.get("finisher_tier") or 0) != primary_tier:
+            continue
+        matchup_advantage = _matchup_total(adjacent) - primary_matchup
+        if matchup_advantage >= 0.35:
+            adjacent["transfer_candidate"] = True
+            return {
+                "primary": _name(primary),
+                "adjacent": _name(adjacent),
+                "primary_slot": primary.get("slot"),
+                "adjacent_slot": adjacent.get("slot"),
+                "finisher_tier": primary_tier,
+                "matchup_advantage": round(matchup_advantage, 3),
+            }
     return None
+
+
+def _keep_if_any(
+    candidates: list[Player],
+    predicate: Callable[[Player], bool],
+    stage: str,
+    stages: list[dict],
+) -> list[Player]:
+    """Gate-16 elimination stage: keep a subgroup only when it exists."""
+    if len(candidates) <= 1:
+        return candidates
+    kept = [player for player in candidates if predicate(player)]
+    if not kept or len(kept) == len(candidates):
+        stages.append(
+            {
+                "stage": stage,
+                "before": len(candidates),
+                "after": len(candidates),
+                "mode": "NO_SEPARATION",
+            }
+        )
+        return candidates
+    stages.append(
+        {
+            "stage": stage,
+            "before": len(candidates),
+            "after": len(kept),
+            "kept": [_name(player) for player in kept],
+        }
+    )
+    return kept
+
+
+def _keep_best_band(
+    candidates: list[Player],
+    field: str,
+    bands: tuple[float, ...],
+    stage: str,
+    stages: list[dict],
+) -> list[Player]:
+    if len(candidates) <= 1:
+        return candidates
+    for floor in bands:
+        kept = [
+            player
+            for player in candidates
+            if _metric(player.get(field), -999.0) >= floor
+        ]
+        if kept:
+            if len(kept) < len(candidates):
+                stages.append(
+                    {
+                        "stage": stage,
+                        "floor": floor,
+                        "before": len(candidates),
+                        "after": len(kept),
+                        "kept": [_name(player) for player in kept],
+                    }
+                )
+                return kept
+            break
+    stages.append(
+        {
+            "stage": stage,
+            "before": len(candidates),
+            "after": len(candidates),
+            "mode": "NO_SEPARATION",
+        }
+    )
+    return candidates
 
 
 def run_all_gates(hitters: list[dict], game: dict, target: dict):
@@ -217,7 +316,7 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
         )
     )
 
-    # Gate 1: the selected pitcher vulnerability must be real and identified.
+    # Gate 1: pitcher vulnerability must be identified.
     pitcher = target.get("pitcher") or {}
     pitcher_ready = pitcher.get("id") is not None and target.get("leak_score") is not None
     current = _apply(
@@ -239,25 +338,25 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
         },
     )
 
-    # Gate 2: environment is game-level context. It cannot favor one hitter on
-    # the same side, so it is audited and carried forward instead of pretending
-    # to eliminate individuals.
+    # Gate 2: shared game context. It is audited, not falsely used as a hitter kill.
     environment = game.get("environment") or {}
     env_score = environment.get("environment_score")
-    env_status = "ACTIVE" if env_score is not None else "UNAVAILABLE"
     logs.append(
         gate_log(
             2,
             "Game Environment",
             len(current),
             len(current),
-            note={**environment, "data_status": env_status},
+            note={
+                **environment,
+                "data_status": "ACTIVE" if env_score is not None else "UNAVAILABLE",
+            },
         )
     )
 
-    # Gate 3: locked Pull-Air identity rules. The lineup service already
-    # returns the starting nine, but validity is rechecked here so an invalid
-    # player can never enter the baseball gates.
+    # Gate 3: Pull-Air identity. PUA/air support is required only in the support
+    # lane; an elite or pass profile is not killed merely because one support
+    # column is missing.
     def pull_air(player: Player) -> tuple[bool, str]:
         valid_starter = (
             player.get("lineup_status") in {"OFFICIAL", "CONFIRMED", "PROJECTED"}
@@ -267,16 +366,13 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
         if not valid_starter:
             return False, "not a valid starting position player"
 
-        missing = _missing(player, "pull", "hard_hit", "pua", "fb")
+        missing = _missing(player, "pull", "hard_hit")
         if missing:
-            return False, f"missing Pull-Air data: {', '.join(missing)}"
+            return False, f"missing Pull-Air identity data: {', '.join(missing)}"
+
         pull = float(player["pull"])
         hard_hit = float(player["hard_hit"])
         pitch_edge = _number(player.get("pitch_edge"))
-        pull_percent = _number(player.get("pull_percent"), 0.0) or 0.0
-        flyball = float(player["fb"])
-        pua = float(player["pua"])
-        pull_barrel = _number(player.get("pull_barrel"))
 
         if pull < 50.0:
             return False, "Pull-Air identity < 50 auto-kill"
@@ -290,7 +386,24 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
             passed = hard_hit >= 45.0 and pitch_edge is not None and pitch_edge >= 0.0
             return passed, "borderline Pull-Air requires HH >= 45 and positive pitch edge"
 
-        support = pull_percent >= 45.0 and flyball >= 40.0 and pua >= 28.0
+        # 50-54 support lane.
+        pull_percent = _number(player.get("pull_percent"))
+        air = _number(player.get("fb"))
+        pua = _number(player.get("pua"))
+        pull_barrel = _number(player.get("pull_barrel"))
+        missing_support = [
+            name
+            for name, value in (
+                ("pull_percent", pull_percent),
+                ("air", air),
+                ("pua", pua),
+            )
+            if value is None
+        ]
+        if missing_support:
+            return False, f"50-54 support lane missing: {', '.join(missing_support)}"
+
+        support = pull_percent >= 45.0 and air >= 40.0 and pua >= 28.0
         if pull_barrel is not None:
             support = support and pull_barrel >= 10.0
         passed = support and hard_hit >= 45.0 and pitch_edge is not None and pitch_edge >= 0.15
@@ -307,8 +420,10 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
                 "elite": "Pull >= 70 and HH >= 45",
                 "pass": "Pull >= 65",
                 "borderline": "55-64 requires HH >= 45 plus positive pitch edge",
+                "support": "50-54 requires raw Pull >= 45, AIR >= 40, PUA >= 28 and matchup edge",
                 "auto_kill": "Pull < 50",
-            }
+            },
+            "fb_field": "AIR_PERCENT",
         },
     )
 
@@ -337,7 +452,7 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
 
     current = _apply(current, 4, "Damage Quality", damage_quality, logs)
 
-    # Gate 5: real pitch-type + strike-zone compatibility from Statcast.
+    # Gate 5: actual Statcast pitch-type + strike-zone compatibility.
     def matchup(player: Player) -> tuple[bool, str]:
         missing = _missing(player, "pitch_type_edge", "zone_edge", "pitch_edge")
         if missing:
@@ -347,7 +462,10 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
         pitch_type_edge = float(player["pitch_type_edge"])
         zone_edge = float(player["zone_edge"])
         combined = float(player["pitch_edge"])
-        elite_identity = float(player.get("pull") or 0.0) >= 70.0 and float(player.get("hard_hit") or 0.0) >= 45.0
+        elite_identity = (
+            float(player.get("pull") or 0.0) >= 70.0
+            and float(player.get("hard_hit") or 0.0) >= 45.0
+        )
         passed = combined >= 0.0 and pitch_type_edge >= -0.20 and zone_edge >= -0.20
         if not passed and elite_identity:
             passed = combined >= -0.08 and pitch_type_edge >= -0.15 and zone_edge >= -0.15
@@ -367,16 +485,19 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
         },
     )
 
-    # Gate 6: lineup access. Bottom two slots cannot own the primary event.
+    # Gate 6: lineup access.
     current = _apply(
         current,
         6,
         "Lineup Access",
-        lambda player: (int(player.get("slot") or 99) <= 7, "slot 8-9 lacks primary event access"),
+        lambda player: (
+            int(player.get("slot") or 99) <= 7,
+            "slot 8-9 lacks primary event access",
+        ),
         logs,
     )
 
-    # Gate 7: recent signal separates only when at least one live signal exists.
+    # Gate 7: recent signal separates only when a live signal exists.
     recent_loaded = sum(1 for player in current if player.get("hr_heat") is not None)
     current = _separator(
         current,
@@ -384,7 +505,9 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
         "Recent HR Signal",
         lambda player: (
             player.get("hr_heat") is True,
-            "no live 14-day HR/slugging signal" if player.get("hr_heat") is not None else "recent feed unavailable",
+            "no live 14-day HR/slugging signal"
+            if player.get("hr_heat") is not None
+            else "recent feed unavailable",
         ),
         logs,
         note={
@@ -393,20 +516,20 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
         },
     )
 
-    # Gate 8: season conversion cannot be missing and must show a real HR lane.
+    # Gate 8: season conversion.
     def conversion(player: Player) -> tuple[bool, str]:
         missing = _missing(player, "hr_pa", "iso")
         if missing:
             return False, f"missing conversion data: {', '.join(missing)}"
         hr_pa = float(player["hr_pa"])
         iso = float(player["iso"])
-        barrel = _number(player.get("barrel"), 0.0) or 0.0
+        barrel = _metric(player.get("barrel"), 0.0)
         passed = hr_pa >= 0.025 or (iso >= 0.180 and barrel >= 10.0)
         return passed, "HR conversion below floor"
 
     current = _apply(current, 8, "HR Conversion", conversion, logs)
 
-    # Gate 9: actual middle-third mistake locations and hitter damage there.
+    # Gate 9: actual mistake-location compatibility.
     mistake_loaded = sum(1 for player in current if player.get("mistake_edge") is not None)
     current = _separator(
         current,
@@ -414,7 +537,7 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
         "Count / Mistake Access",
         lambda player: (
             player.get("mistake_edge") is not None and float(player["mistake_edge"]) >= 0.0,
-            "negative performance against the pitcher's middle-third locations"
+            "negative performance against the pitcher's mistake locations"
             if player.get("mistake_edge") is not None
             else "mistake-location data unavailable",
         ),
@@ -423,25 +546,35 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
             "loaded": mistake_loaded,
             "data_status": "ACTIVE" if mistake_loaded else "UNAVAILABLE",
             "pitcher_mistake_rate": next(
-                (player.get("pitcher_mistake_rate") for player in current if player.get("pitcher_mistake_rate") is not None),
+                (
+                    player.get("pitcher_mistake_rate")
+                    for player in current
+                    if player.get("pitcher_mistake_rate") is not None
+                ),
                 None,
             ),
         },
     )
 
-    # Gate 10: stop at hitters projected for enough plate appearances.
+    # Gate 10: projected PA stop.
     current = _apply(
         current,
         10,
         "Opportunity Stop",
-        lambda player: (int(player.get("slot") or 99) <= 6, "slot outside projected PA stop"),
+        lambda player: (
+            int(player.get("slot") or 99) <= 6,
+            "slot outside projected PA stop",
+        ),
         logs,
     )
-    for player in current:
-        player["pre_finisher_score"] = _finisher_score(player)
 
-    # Gate 10.5: adjacent transfer is only flagged here; it cannot override a
-    # clearly stronger finisher and cannot eliminate anybody by itself.
+    # Finisher tiers are calculated before transfer, but no winner is selected.
+    for player in current:
+        tier, label = _finisher_tier(player)
+        player["finisher_tier"] = tier
+        player["finisher_label"] = label
+
+    # Gate 10.5: identify a legitimate adjacent lane only.
     candidate = _transfer_candidate(current)
     logs.append(
         gate_log(
@@ -453,10 +586,12 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
         )
     )
 
-    # Gate 11: continuation through the opposing relief corps. Same bullpen for
-    # every hitter, so this is a verified context gate rather than a fake player
-    # elimination.
-    bullpen = game.get("away_bullpen") if target.get("side") == "home" else game.get("home_bullpen")
+    # Gate 11: bullpen continuation is shared context, not a fake hitter score.
+    bullpen = (
+        game.get("away_bullpen")
+        if target.get("side") == "home"
+        else game.get("home_bullpen")
+    )
     bullpen = bullpen or {}
     for player in current:
         player["bullpen_risk"] = bullpen.get("risk_score")
@@ -467,14 +602,16 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
             "Bullpen Continuation",
             len(current),
             len(current),
-            note={**bullpen, "data_status": "ACTIVE" if bullpen.get("loaded") else "UNAVAILABLE"},
+            note={
+                **bullpen,
+                "data_status": "ACTIVE" if bullpen.get("loaded") else "UNAVAILABLE",
+            },
         )
     )
 
-    # Gate 12: pressure/cadence is calculated for every survivor but remains a
-    # secondary component. It never ranks above the finisher at Gate 16.
+    # Gate 12: pressure/cadence is audited as flags only; no weighted score.
     for player in current:
-        player["pressure_score"] = _pressure_score(player, target, environment)
+        player["pressure_flags"] = _pressure_flags(player, target, environment)
     logs.append(
         gate_log(
             12,
@@ -483,15 +620,18 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
             len(current),
             note={
                 "scores": [
-                    {"player": _name(player), "pressure_score": player.get("pressure_score")}
+                    {
+                        "player": _name(player),
+                        "flags": player.get("pressure_flags"),
+                    }
                     for player in current
                 ],
-                "rule": "pressure cannot outweigh finisher",
+                "rule": "context only; never outweighs finisher",
             },
         )
     )
 
-    # Gate 13: Universe remains completely isolated and tie-break only.
+    # Gate 13: Universe is isolated and tie-break only.
     for player in current:
         player["universe_score"] = _universe_score(player, game)
     logs.append(
@@ -503,7 +643,10 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
             note={
                 "mode": "TIE_BREAK_ONLY",
                 "scores": [
-                    {"player": _name(player), "universe_score": player.get("universe_score")}
+                    {
+                        "player": _name(player),
+                        "universe_score": player.get("universe_score"),
+                    }
                     for player in current
                 ],
             },
@@ -518,7 +661,9 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
         "Lineup Protection",
         lambda player: (
             player.get("protection") is not None and float(player["protection"]) >= 0.0,
-            "isolated lineup cluster" if player.get("protection") is not None else "protection data unavailable",
+            "isolated lineup cluster"
+            if player.get("protection") is not None
+            else "protection data unavailable",
         ),
         logs,
         note={
@@ -527,29 +672,43 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
         },
     )
 
-    # Gate 15: HR finisher identity. No pressure or Universe input is included.
-    removed = []
-    finishers = []
+    # Gate 15: discrete HR finisher identity. Keep the strongest available lane,
+    # not a weighted score winner.
     before = len(current)
-    for player in current:
-        score = _finisher_score(player)
-        player["finisher_score"] = score
-        if score is None:
-            removed.append({"player": _name(player), "reason": "missing finisher data"})
-            continue
-        hr_pa = float(player.get("hr_pa") or 0.0)
-        iso = float(player.get("iso") or 0.0)
-        damage = float(player.get("damage_score") or 0.0)
-        if score >= 50.0 and hr_pa >= 0.020 and iso >= 0.140 and damage >= 45.0:
-            finishers.append(player)
-        else:
-            removed.append(
+    removed: list[dict] = []
+    if current:
+        for player in current:
+            tier, label = _finisher_tier(player)
+            player["finisher_tier"] = tier
+            player["finisher_label"] = label
+        best_tier = max(int(player.get("finisher_tier") or 0) for player in current)
+        if best_tier > 0:
+            finishers = [
+                player
+                for player in current
+                if int(player.get("finisher_tier") or 0) == best_tier
+            ]
+            removed = [
                 {
                     "player": _name(player),
-                    "reason": f"finisher floor failed (score={score}, HR/PA={hr_pa:.3f}, ISO={iso:.3f}, damage={damage:.1f})",
+                    "reason": (
+                        f"lower finisher lane {player.get('finisher_tier')} "
+                        f"than live lane {best_tier}"
+                    ),
                 }
-            )
-    current = finishers
+                for player in current
+                if int(player.get("finisher_tier") or 0) != best_tier
+            ]
+            current = finishers
+        else:
+            removed = [
+                {
+                    "player": _name(player),
+                    "reason": player.get("finisher_label") or "finisher floor failed",
+                }
+                for player in current
+            ]
+            current = []
     logs.append(
         gate_log(
             15,
@@ -559,65 +718,147 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
             removed,
             note={
                 "scores": [
-                    {"player": _name(player), "finisher_score": player.get("finisher_score")}
+                    {
+                        "player": _name(player),
+                        "finisher_tier": player.get("finisher_tier"),
+                        "finisher_label": player.get("finisher_label"),
+                        "hr_pa": player.get("hr_pa"),
+                        "iso": player.get("iso"),
+                        "damage": player.get("damage_score"),
+                        "air": player.get("fb"),
+                    }
                     for player in current
-                ]
+                ],
+                "rule": "discrete Core / Primary / WHO lanes; no blended finisher score",
             },
         )
     )
 
-    # Gate 16: exactly one last man from the hitters who survived every hard
-    # baseball gate. Finisher leads; transfer is allowed only inside a narrow
-    # finisher band with stronger matchup/recent evidence.
+    # Gate 16: one last man through explicit sequential elimination stages.
     before = len(current)
     if not current:
         logs.append(gate_log(16, "Last-Man Survivor", 0, 0, note={"decision": "WHO"}))
         return [], logs
 
-    ordered = sorted(
-        current,
-        key=lambda player: (
-            _number(player.get("finisher_score"), -999.0),
-            _number(player.get("damage_score"), -999.0),
-            _number(player.get("pitch_edge"), -999.0),
-            _number(player.get("hr_pa"), -999.0),
-            _number(player.get("iso"), -999.0),
-            bool(player.get("hr_heat")),
-            _number(player.get("pressure_score"), -999.0),
-            _number(player.get("universe_score"), -999.0),
-        ),
-        reverse=True,
-    )
-    winner = ordered[0]
-    transfer_executed = False
-    transfer_reason = None
+    candidates = list(current)
+    stages: list[dict] = []
 
-    for challenger in ordered[1:]:
-        if not challenger.get("transfer_candidate"):
-            continue
-        finisher_gap = float(winner.get("finisher_score") or 0.0) - float(challenger.get("finisher_score") or 0.0)
-        stronger_matchup = float(challenger.get("pitch_edge") or -999.0) >= float(winner.get("pitch_edge") or -999.0) + 0.20
-        stronger_rhythm = challenger.get("hr_heat") is True and winner.get("hr_heat") is not True
-        if finisher_gap <= 3.0 and (stronger_matchup or stronger_rhythm):
-            winner = challenger
-            transfer_executed = True
-            transfer_reason = {
-                "finisher_gap": round(finisher_gap, 3),
-                "stronger_matchup": stronger_matchup,
-                "stronger_rhythm": stronger_rhythm,
+    # A marked adjacent transfer only survives if it still owns the stronger
+    # matchup after every later gate. It never jumps a higher finisher tier.
+    if candidate and len(candidates) > 1:
+        adjacent_name = candidate.get("adjacent")
+        primary_name = candidate.get("primary")
+        adjacent = next((p for p in candidates if _name(p) == adjacent_name), None)
+        primary = next((p for p in candidates if _name(p) == primary_name), None)
+        if adjacent is not None and primary is not None:
+            advantage = _matchup_total(adjacent) - _matchup_total(primary)
+            if (
+                int(adjacent.get("finisher_tier") or 0)
+                == int(primary.get("finisher_tier") or 0)
+                and advantage >= 0.35
+            ):
+                candidates = [adjacent]
+                stages.append(
+                    {
+                        "stage": "ADJACENT_TRANSFER",
+                        "before": before,
+                        "after": 1,
+                        "winner": _name(adjacent),
+                        "matchup_advantage": round(advantage, 3),
+                    }
+                )
+
+    if len(candidates) > 1:
+        max_tier = max(int(player.get("finisher_tier") or 0) for player in candidates)
+        candidates = _keep_if_any(
+            candidates,
+            lambda player: int(player.get("finisher_tier") or 0) == max_tier,
+            "FINISHER_TIER",
+            stages,
+        )
+
+    candidates = _keep_if_any(
+        candidates,
+        lambda player: _metric(player.get("pitch_type_edge"), -99.0) >= 0.20,
+        "PITCH_TYPE_EDGE_0.20",
+        stages,
+    )
+    candidates = _keep_if_any(
+        candidates,
+        lambda player: _metric(player.get("zone_edge"), -99.0) >= 0.20,
+        "ZONE_EDGE_0.20",
+        stages,
+    )
+    candidates = _keep_if_any(
+        candidates,
+        lambda player: _metric(player.get("mistake_edge"), -99.0) >= 0.10,
+        "MISTAKE_EDGE_0.10",
+        stages,
+    )
+    candidates = _keep_if_any(
+        candidates,
+        lambda player: player.get("hr_heat") is True,
+        "RECENT_HR_SIGNAL",
+        stages,
+    )
+    candidates = _keep_if_any(
+        candidates,
+        lambda player: _metric(player.get("protection"), -1.0) > 0.0,
+        "POSITIVE_PROTECTION",
+        stages,
+    )
+    candidates = _keep_if_any(
+        candidates,
+        lambda player: int(player.get("slot") or 99) <= 4,
+        "TOP_FOUR_ACCESS",
+        stages,
+    )
+
+    # Finisher component bands are used one at a time, never added together.
+    candidates = _keep_best_band(
+        candidates,
+        "hr_pa",
+        (0.060, 0.050, 0.045, 0.040, 0.035, 0.030, 0.025),
+        "HR_PA_BAND",
+        stages,
+    )
+    candidates = _keep_best_band(
+        candidates,
+        "iso",
+        (0.300, 0.260, 0.230, 0.200, 0.180, 0.150),
+        "ISO_BAND",
+        stages,
+    )
+    candidates = _keep_best_band(
+        candidates,
+        "damage_score",
+        (90.0, 80.0, 70.0, 60.0, 55.0, 45.0),
+        "DAMAGE_BAND",
+        stages,
+    )
+
+    # Universe is the final tie-break only.
+    if len(candidates) > 1:
+        winner = max(candidates, key=lambda player: int(player.get("universe_score") or 0))
+        stages.append(
+            {
+                "stage": "UNIVERSE_FINAL_TIE_BREAK",
+                "before": len(candidates),
+                "after": 1,
+                "winner": _name(winner),
             }
-        break
+        )
+        candidates = [winner]
 
-    winner["ownership_score"] = winner.get("finisher_score") or 0.0
+    winner = candidates[0]
+    winner["ownership_score"] = int(winner.get("finisher_tier") or 0)
     winner["event_reason"] = (
-        "Gate 16 last man: survived Pull-Air, damage, real pitch-type/zone, "
-        "conversion, mistake, opportunity, bullpen, protection and finisher gates"
+        "Gate 16 last man through sequential finisher, matchup, recent, "
+        "protection and opportunity eliminations; Universe used only if still tied"
     )
-    if transfer_executed:
-        winner["event_reason"] += "; adjacent transfer executed inside the 3-point finisher band"
 
     removed = [
-        {"player": _name(player), "reason": "lost Gate 16 last-man comparison"}
+        {"player": _name(player), "reason": "lost Gate 16 sequential elimination"}
         for player in current
         if player is not winner
     ]
@@ -630,11 +871,10 @@ def run_all_gates(hitters: list[dict], game: dict, target: dict):
             removed,
             note={
                 "winner": _name(winner),
-                "finisher_score": winner.get("finisher_score"),
-                "pressure_score": winner.get("pressure_score"),
-                "transfer_executed": transfer_executed,
-                "transfer_reason": transfer_reason,
-                "rule": "finisher first; pressure and Universe are tie-breakers only",
+                "finisher_tier": winner.get("finisher_tier"),
+                "finisher_label": winner.get("finisher_label"),
+                "stages": stages,
+                "rule": "no blended ranking; explicit gate-by-gate last-man elimination",
             },
         )
     )
