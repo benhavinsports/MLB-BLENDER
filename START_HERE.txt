@@ -1,0 +1,16 @@
+NHL BLENDER — START HERE
+
+Windows:
+1. Install Python 3.11 or newer.
+2. Extract the ZIP.
+3. Double-click start_windows.bat.
+
+macOS/Linux:
+1. Install Python 3.11 or newer.
+2. Open a terminal in this folder.
+3. Run: chmod +x start_unix.sh && ./start_unix.sh
+
+The first launch installs requirements, then opens the Streamlit app in your browser. Internet access is required for live NHL API data.
+
+For a command-line audit: python run_daily.py --date YYYY-MM-DD --mode projected --history 8
+For a confirmed pass: python run_daily.py --date YYYY-MM-DD --mode confirmed --history 8

@@ -1,0 +1,6 @@
+{
+  "name": "NHL Blender",
+  "version": "1.2.0",
+  "purpose": "Automated NHL full-slate evidence analysis and gate audit",
+  "entrypoint": "app.py"
+}
