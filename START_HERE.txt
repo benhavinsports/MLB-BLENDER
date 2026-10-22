@@ -1,0 +1,22 @@
+v1.26: Empty schedule responses now fail closed as NOT VALIDATED, and CLI default date uses America/New_York local time.
+v1.25: `python run_daily.py --mode both` also writes a separate projected-vs-confirmed phase comparison audit. It does not convert projected information into confirmed assignments.
+
+NHL BLENDER — START HERE
+
+Windows:
+1. Install Python 3.11 or newer.
+2. Extract the ZIP.
+3. Double-click start_windows.bat.
+
+macOS/Linux:
+1. Install Python 3.11 or newer.
+2. Open a terminal in this folder.
+3. Run: chmod +x start_unix.sh && ./start_unix.sh
+
+The first launch installs requirements, then opens the Streamlit app in your browser. Internet access is required for live NHL API data.
+
+For a command-line audit: python run_daily.py --date YYYY-MM-DD --mode projected --history 8
+For a confirmed pass: python run_daily.py --date YYYY-MM-DD --mode confirmed --history 8
+
+Run both phases automatically (fresh projected pass first, then fresh confirmed pass):
+python run_daily.py --date YYYY-MM-DD --mode both --history 8

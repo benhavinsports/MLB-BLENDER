@@ -1,0 +1,40 @@
+{
+  "name": "NHL Blender",
+  "version": "1.29",
+  "purpose": "Automated NHL full-slate evidence analysis, multi-source projected deployment retrieval, and gate audit",
+  "entrypoint": "app.py",
+  "changes": [
+    "Added diagnostic-only --preflight mode probing schedule, score, and schedule-calendar independently with direct non-retrying requests; records HTTP/JSON/schema status, latency, date-matched rows, and failures without running player analysis or certifying picks.",
+    "Added a diagnostic-only --preflight mode that probes schedule, score, and schedule-calendar endpoints independently, records HTTP/JSON/schema status, latency, date-matched row counts, and network errors, and writes a dedicated source-preflight JSON without running analysis or certifying picks.",
+    "Pre-analysis schedule record validation: rejects cross-date, duplicate-ID, missing-ID, and missing-team rows before game analysis; any invalid row blocks complete-slate validation and suppresses Core output.",
+    "Strict date integrity for the official scoreboard fallback: game records are accepted only when their explicit gameDate exactly matches the requested slate date; missing-date and cross-date rows are ignored and the calendar fallback is tried instead.",
+    "Empty schedule responses are now explicitly NOT VALIDATED rather than being treated as a complete zero-game slate; CLI default date follows America/New_York local calendar to avoid UTC date-boundary mismatches.",
+    "Projected-to-confirmed phase comparison report: compares exact NHL player IDs across fresh phase runs, records changed/missing assignments and evidence deltas, flags unsupported CONFIRMED labels, and explicitly prevents a second retrieval pass from being mistaken for confirmed deployment.",
+    "Historical goal-context/deployment comparison: compares exact player IDs from joined historical goal-shift events against explicit shared current line or PP-unit labels, reports event-level matches and unresolved/no-match states, and explicitly remains descriptive rather than proving current deployment or causality.",
+    "Historical goal-to-shift join: aligns historical goal events with shift-chart intervals using exact game, period, team identity, and play-by-play remaining clock; exposes which teammates were on ice at each joined goal, and retains unjoined events with explicit reasons. This is descriptive historical evidence only and does not infer current deployment.",
+    "Historical shift-overlap evidence: calculates pairwise same-team, same-period shift interval overlap by player pair and game; surfaces player-specific historical teammate overlap and team-level pair summaries without promoting past co-deployment to current line confirmation. Added tests for repeated overlap, player filtering, period separation, and team separation.",
+    "Historical deployment evidence: retrieves the latest three available NHL shift charts per team, summarizes each skater's observed shift count/duration by completed game, preserves source-level retrieval failures, and explicitly prevents historical shift usage from being treated as tonight's confirmed line or PP assignment.",
+    "Historical sample integrity: missing play-by-play is now explicitly distinguished from an observed zero-goal sample; G4/G10 remain pending and G18 blockers explain unavailable historical evidence rather than implying a player produced zero.",
+    "G15/G16 blocker integrity: only exact distinct-evidence-advantage decisions clear the finisher-protection and final-competition blockers; equivalent, dominated, mixed, missing, or generic completed labels remain blocked.",
+    "conflicting deployment evidence remains unresolved instead of source-order tie-break",
+    "confirmed mode never promotes projected lineup sources to confirmed",
+    "source-level line and PP evidence provenance retained",
+    "general web search fallback is triggered when known sources miss line or PP deployment; search results only count when opened pages contain explicit structured assignments",
+    "app and CLI can run a fresh projected pass followed by a separate fresh confirmed pass, saving distinct reports and phase metadata",
+    "Strict Core output derived only from explicit G18-locked survivors; supports Core 2 for a two-game slate, refuses to fill missing slots, and does not arbitrarily truncate more than three locks without cross-game competition.",
+    "G17 structural contradiction audit now detects duplicate deployment records, conflicting line/PP assignments, multiple goalies marked starter, duplicate roster IDs, and source retrieval errors without silently resolving them.",
+    "G18 blocker integrity: incomplete G8 market evidence and G9 player-environment splits now explicitly block final locks; deployment conflicts, duplicate records, multiple marked starters, and retrieval errors feed G17 blockers.",
+    "CLI fault isolation: schedule and per-game feed/deployment exceptions are recorded in retrievalAudit; partial retrieval forces NOT VALIDATED and clears any Core output. Added pytest path configuration and regression tests.",
+    "Official NHL gamecenter boxscore participation evidence is now extracted and shown separately from projected lines; explicit starter markers and scratches are surfaced when present, and the adapter never infers confirmed line or power-play assignments from roster presence.",
+    "G9 now calculates player-specific home/away shots-on-goal and goals per game from historical official game IDs and play-by-play; the gate only clears its blocker when both venue samples exist, with no invented thresholds or causal claims.",
+    "G8 now has an optional direct anytime-goal market adapter using The Odds API, exact event/player joins, preserved book/price/update provenance, pending states for unavailable data, per-game audit visibility, and regression tests; market odds are never converted to a score or used to rank candidates.",
+    "G8 validates player-level market price and provider timestamp pairs, reports the newest update and its age without imposing an invented freshness cutoff, and keeps malformed/untimestamped market rows from clearing the G8 blocker.",
+    "Official NHL slate retrieval now falls back from schedule/{date} to score/{date} and schedule-calendar/{date}; preserves all endpoint failures and raises instead of misreporting an unavailable slate as empty. Added regression tests for each fallback and total source failure.",
+    "Streamlit and CLI now share one retrieval-completeness audit; a partial gamecenter feed or failed per-game bundle suppresses Core output and marks the slate NOT VALIDATED while retaining successful bundles for inspection."
+  ],
+  "verification": {
+    "pythonCompilation": "PASS",
+    "automatedTests": "79 passed",
+    "livePreflight": "Executed for 2026-10-19; 0/3 endpoints reachable in build environment, recorded as NO_ENDPOINT_REACHABLE"
+  }
+}
