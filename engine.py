@@ -3,7 +3,7 @@ from collections import Counter,defaultdict
 from datetime import datetime,timezone
 import hashlib
 from nhl_data import events,roster,starters,get_history,players_from
-GATES=[('G0','Game/slate lock'),('G1','Environment'),('G2','Lineup/access'),('G3','Opponent attack map'),('G4','Damage mechanism'),('G5','Exact matchup alignment'),('G6','Opportunity/access'),('G7','Recurrence/sequence'),('G8','Market fingerprint'),('G9','Player × environment'),('G10','Event route'),('G10.5','Recipient separation'),('G11','Continuation'),('G12','Event ownership'),('G14','WHO/anomaly'),('G15','Finisher protection'),('G16','Final competition'),('G17','Contradiction audit'),('G18','Final audit')]
+GATES=[('G0','Game/slate lock'),('G1','Environment'),('G2','Lineup/access'),('G3','Opponent attack map'),('G4','Damage mechanism'),('G5','Exact matchup alignment'),('G6','Opportunity/access'),('G7','Recurrence/sequence'),('G8','Market fingerprint'),('G9','Player × environment'),('G10','Event route'),('G10.5','Recipient separation'),('G11','Continuation'),('G12','Event ownership'),('G13','Numerology/alignment (existing formula only)'),('G14','WHO/anomaly'),('G15','Finisher protection'),('G16','Final competition'),('G17','Contradiction audit'),('G18','Final audit')]
 def now():return datetime.now(timezone.utc).isoformat()
 def sid(*x):return hashlib.sha256('|'.join(map(str,x)).encode()).hexdigest()[:14]
 def isgoal(e):
@@ -161,6 +161,7 @@ def analyze(bundle,mode,limit=8):
  gate('G10.5','Recipient separation',status(any(p['historicalGoals'] or p['historicalAssists'] for p in player_rows)),[f'goal recipients with historical goals={sum(p["historicalGoals"]>0 for p in player_rows)}',f'facilitators with historical assists={sum(p["historicalAssists"]>0 for p in player_rows)}',f'full skater pool preserved={len(player_rows)}'],'Finisher and facilitator are separated by recorded goal/assist event IDs; lineup/PP-role claims are not inferred.'),
  gate('G11','Continuation',status(hist_events>0),[f'recent completed games retrieved={hist_n}',f'players with goals in retrieved history={sum(p["historicalGoals"]>0 for p in player_rows)}'],'Continuity is limited to retrieved event history; no late-game deployment assumptions.'),
  gate('G12','Event ownership',status(any(isgoal(x) and x.get('shooterId') for x in current) or any(isgoal(x) and (x.get('shooterId') or x.get('assist1Id') or x.get('assist2Id')) for t in hist.values() for x in t['events'])),[f'current direct-ID events={len(direct_now)}',f'historical events={hist_events}',f'current goal events with scorer IDs={sum(bool(isgoal(x) and x.get("shooterId")) for x in current)}',f'historical goal/assist events with player IDs={sum(bool(isgoal(x) and (x.get("shooterId") or x.get("assist1Id") or x.get("assist2Id"))) for t in hist.values() for x in t["events"])}'],'Ownership is asserted only from event player IDs.'),
+ gate('G13','Numerology/alignment','NOT APPLIED — NO ORIGINAL FORMULA CONFIGURED',[],'No formula is invented. Configure the original established formula before this gate can be applied.'),
  gate('G14','WHO/anomaly',status(any(m['directGoals']>0 or (set(p['goalShotTypes'])-{'unknown'}) & (set(m.get('goalsAgainstByShotType',{}))-{'unknown'}) or (set(p.get('goalZones',{}))-{'unknown'}) & (set(m.get('goalsAgainstByZone',{}))-{'unknown'}) for p in player_rows for m in p['opposingGoalieMatches'])),[f'full candidate universe={len(player_rows)}',f'players with goal events={sum(p["historicalGoals"]>0 for p in player_rows)}',f'players with exact goalie goals={sum(any(m["directGoals"]>0 for m in p["opposingGoalieMatches"]) for p in player_rows)}'],'Roster presence alone is not anomaly evidence. Candidates are surfaced from direct-goal or exact shared-lane evidence and cannot override a stronger validated path.'),
  gate('G15','Finisher protection','COMPARISON REQUIRED',[f'players with recorded goals={sum(p["historicalGoals"]>0 for p in player_rows)}',f'players with recorded assists={sum(p["historicalAssists"]>0 for p in player_rows)}',f'candidate rows preserved={len(player_rows)}'],'Do not displace a finisher with a stronger validated goal path solely because another player has more assists. This gate remains unresolved until comparable candidate paths are reviewed.'),
  gate('G16','Final competition','CATEGORICAL — NO NUMERIC SCORE',[f'goal-scoring profiles={sum(p["historicalGoals"]>0 for p in player_rows)}',f'exact player-goalie goal paths={sum(1 for p in player_rows for m in p["opposingGoalieMatches"] if m["directGoals"]>0)}',f'candidate rows preserved={len(player_rows)}'],'No weighted score, arbitrary tie-breaker, or forced winner; candidate evidence stays visible for direct comparison.'),
@@ -240,20 +241,49 @@ def analyze(bundle,mode,limit=8):
    'DIRECT GOAL OR SHARED LANE EVIDENCE' if any(r['directGoals']>0 or r['shotTypeOverlap'] or r['zoneOverlap'] for r in pm) else
    'PLAYER HISTORY ONLY' if p['historicalAttempts']>0 or p['historicalGoals']>0 else
    'INSUFFICIENT EVENT EVIDENCE')
-  p['pathDisposition'] = 'UNRESOLVED — DEPLOYMENT / FULL-GATE VALIDATION REQUIRED'
+  # Decisions are derived from the candidate's evidence; never stamp every
+  # player with the same unresolved result. Missing data remains pending.
+  explicit_deployment = bool(p.get('deploymentEvidence') and
+      (p['deploymentEvidence'].get('line') or p['deploymentEvidence'].get('powerPlayUnit')))
+  direct_goal_path = p['opposingStarterDirectGoals'] > 0
+  shared_lane_path = p['confirmedStarterPath']
+  route_supported = bool(direct_goal_path or shared_lane_path)
+  same_team = [q for q in player_rows if q['team'] == p['team'] and q['playerId'] != p['playerId']]
+  # Finisher protection is a direct, categorical comparison, not a score.
+  # Assists alone never displace a player with a goal-producing path.
+  stronger_finisher_competitors = [q for q in same_team
+      if q['historicalGoals'] > p['historicalGoals'] and
+      (q.get('confirmedStarterPath') or q.get('opposingStarterDirectGoals', 0) > 0)]
+  if not same_team:
+   finisher_decision = 'NO SAME-TEAM COMPARATOR IN AVAILABLE POOL'
+  elif stronger_finisher_competitors:
+   finisher_decision = 'REVIEW — COMPARATOR HAS GOALS AND A MATCHUP PATH'
+  elif p['historicalGoals'] > 0 and route_supported:
+   finisher_decision = 'PROTECT — RECORDED FINISHER WITH MATCHUP PATH'
+  elif p['historicalAssists'] > p['historicalGoals'] and not route_supported:
+   finisher_decision = 'NO DISPLACEMENT — ASSISTS DO NOT ESTABLISH A GOAL PATH'
+  else:
+   finisher_decision = 'COMPARISON LIMITED — KEEP CANDIDATE VISIBLE'
   p['finisherProtectionAudit'] = {
-   'role': p['recipientRole'],
-   'goals': p['historicalGoals'],
-   'assists': p['historicalAssists'],
-   'evidencePathClass': p['evidencePathClass'],
-   'comparedAgainstPlayerIds': [q['playerId'] for q in player_rows if q['team'] == p['team'] and q['playerId'] != p['playerId']],
-   'decision': 'NO DISPLACEMENT — comparative paths are not fully validated'
+   'role': p['recipientRole'], 'goals': p['historicalGoals'],
+   'assists': p['historicalAssists'], 'evidencePathClass': p['evidencePathClass'],
+   'comparedAgainstPlayerIds': [q['playerId'] for q in same_team],
+   'strongerValidatedFinisherPlayerIds': [q['playerId'] for q in stronger_finisher_competitors],
+   'decision': finisher_decision
   }
+  competing = [q for q in player_rows if q['opponent'] == p['opponent'] and q['team'] != p['team']]
   p['finalCompetition'] = {
-   'competingPathClasses': sorted({q['evidencePathClass'] for q in player_rows if q['opponent'] == p['opponent']}),
-   'decision': 'UNRESOLVED — G6 deployment and complete contradiction review are missing',
-   'numericScoreUsed': False
+   'competingPathClasses': sorted({q['evidencePathClass'] for q in competing}),
+   'decision': ('SUPPORTED PATH — categorical evidence exists' if route_supported else
+                'NO VALIDATED MATCHUP PATH — retain as unselected evidence'),
+   'numericScoreUsed': False,
+   'crossGameCompetitionRequired': True
   }
+  # A locked designation requires current line/PP access, a confirmed opposing
+  # starter with shared/direct evidence, and no structural data contradiction.
+  # This is an evidence gate, not a forced winner or a prediction score.
+  p['pathDisposition'] = ('PATH EVIDENCE FOUND — NOT LOCKED: DEPLOYMENT/CONTRADICTION CHECK' if route_supported
+                          else 'NO VALIDATED MATCHUP PATH — NOT LOCKED')
   p['gateTrace']=[
    gate('G0','Game identity',status(bool(game.get('gameId'))),[f"gameId={game.get('gameId')}",f"gameType={game.get('gameType') or 'not supplied'}",f"matchup={game.get('awayAbbrev')} @ {game.get('homeAbbrev')}"]),
    gate('G1','Environment','PARTIAL — REST / VENUE ONLY',[str(game.get('venue') or 'venue unavailable'),str(team_context.get(p['team'],{}))],'Travel and arena conditions are not measured by the current feed.'),
@@ -269,11 +299,12 @@ def analyze(bundle,mode,limit=8):
    gate('G10.5','Recipient separation',status(bool(p['historicalGoals'] or p['historicalAssists'])),[f"finisher goals={p['historicalGoals']}",f"facilitator assists={p['historicalAssists']}" ]),
    gate('G11','Continuation',status(bool(p['datesWithGoals'] or p['datesWithShots'])),[f"recent recorded goal dates={p['datesWithGoals'][:5]}"]),
    gate('G12','Event ownership',status(bool(p['historicalGoals'] or p['historicalAssists'])),[f"goal events={p['historicalGoals']}",f"assist events={p['historicalAssists']}"]),
+   gate('G13','Numerology/alignment','NOT APPLIED — NO ORIGINAL FORMULA CONFIGURED',[], 'No formula is invented. Configure the original established formula before this gate can be applied.'),
    gate('G14','WHO/anomaly',status(any('SHARED DAMAGE LANE' in r['pathFinding'] or 'DIRECT GOAL' in r['pathFinding'] for r in pm)),[r['pathFinding'] for r in pm]),
-   gate('G15','Finisher protection','UNRESOLVED — COMPARATIVE PATHS INCOMPLETE',[f"recipient role={p['recipientRole']}",f"goals={p['historicalGoals']}",f"assists={p['historicalAssists']}",f"evidence path={p['evidencePathClass']}",f"same-team competitors={p['finisherProtectionAudit']['comparedAgainstPlayerIds']}",p['finisherProtectionAudit']['decision']],'The engine records all same-team competitors and protects against automatic displacement, but cannot finish comparison without verified deployment and complete gate evidence.'),
-   gate('G16','Final competition','UNRESOLVED — NO FORCED WINNER',[f"candidate evidence class={p['evidencePathClass']}",f"competing classes={p['finalCompetition']['competingPathClasses']}",p['finalCompetition']['decision']],'Competition is recorded categorically; a final disposition is withheld while required gates are unresolved.'),
+   gate('G15','Finisher protection',p['finisherProtectionAudit']['decision'],[f"recipient role={p['recipientRole']}",f"goals={p['historicalGoals']}",f"assists={p['historicalAssists']}",f"evidence path={p['evidencePathClass']}",f"same-team competitors={p['finisherProtectionAudit']['comparedAgainstPlayerIds']}",p['finisherProtectionAudit']['decision']],'Categorical comparison only; assists alone do not displace a goal-path finisher.'),
+   gate('G16','Final competition',p['finalCompetition']['decision'],[f"candidate evidence class={p['evidencePathClass']}",f"competing classes={p['finalCompetition']['competingPathClasses']}",p['finalCompetition']['decision']],'Cross-game competition is required before building the Core; no numeric score is used.'),
    gate('G17','Contradiction audit','REVIEW REQUIRED' if any('CONTRADICTION CHECK' in r['pathFinding'] for r in pm) else 'CANDIDATE REVIEW — NO AUTOMATIC OVERRIDE',[f"goals={p['historicalGoals']}",f"assists={p['historicalAssists']}",f"goalie path findings={len(pm)}",str(p['routeFindings'])],'This flags evidence requiring review; it does not auto-eliminate a player or claim every tactical contradiction is resolved.'),
-   gate('G18','Final audit','NOT VALIDATED — REQUIRED GATES UNRESOLVED',[f"playerId={p['playerId']}",f"gate count={len(GATES)}",f"path class={p['evidencePathClass']}",'G6 current deployment unresolved','G15 comparison incomplete','G16 competition unresolved'],'A trace is not a pass. This record is not eligible for a final player-path designation until required evidence and contradictions are resolved.')]
+   gate('G18','Final audit',('NOT LOCKED — CURRENT DEPLOYMENT NOT VERIFIED' if not explicit_deployment else ('NOT LOCKED — NO CONFIRMED-STARTER MATCHUP PATH' if not route_supported else ('NOT LOCKED — STRUCTURAL/Tactical AUDIT REQUIRED' if contradictions else 'PATH CANDIDATE — CROSS-GAME LOCK REQUIRED'))),[f"playerId={p['playerId']}",f"gate count={len(GATES)}",f"path class={p['evidencePathClass']}",f"explicit deployment={explicit_deployment}",f"confirmed-starter matchup path={route_supported}",f"structural contradictions={len(contradictions)}"],'This engine does not force a player lock. A Core slot is eligible only after the full-slate contradiction and cross-game audit confirms the path.')]
  # Real comparative output: compare every same-game candidate's observed
  # route dimensions without assigning a synthetic score or forcing a winner.
  route_comparisons=[]
