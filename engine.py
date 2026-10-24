@@ -377,10 +377,26 @@ def run_slate(bundles, mode, history_limit=8):
                     'gameId': game_id, 'playerId': player.get('playerId'),
                     'player': player.get('player'), 'reasons': reasons
                 })
-        # Ambiguity means no lock for this game. Never select a convenient name.
+        # Never turn unresolved final gate traces into a lock.
         if len(eligible) == 1:
             player = eligible[0]
             trace = player.get('gateTrace') or []
+            required_final_gates = {'G6', 'G15', 'G16', 'G17', 'G18'}
+            trace_by_id = {str(g.get('gate')): g for g in trace}
+            def _is_explicit_pass(g):
+                s = str(g.get('status', '')).upper()
+                return ('PASS' in s or 'LOCKED' in s) and not any(
+                    token in s for token in ('UNRESOLVED', 'NOT VALIDATED', 'REVIEW REQUIRED', 'PENDING')
+                )
+            unresolved_final_gates = sorted(
+                gid for gid in required_final_gates
+                if gid not in trace_by_id or not _is_explicit_pass(trace_by_id[gid])
+            )
+            if unresolved_final_gates:
+                report.setdefault('finalSlateAudit', {})['status'] = 'NO G18 LOCK — REQUIRED FINAL GATES UNRESOLVED'
+                report['finalSlateAudit']['unresolvedFinalGates'] = unresolved_final_gates
+                report['finalSlateAudit']['reason'] = 'Unresolved gate traces cannot be overwritten with a lock.'
+                continue
             if trace and trace[-1].get('gate') == 'G18':
                 trace[-1]['status'] = 'LOCKED — G18 FINAL AUDIT PASSED'
                 trace[-1]['evidence'] = list(trace[-1].get('evidence') or []) + [
