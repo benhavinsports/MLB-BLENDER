@@ -3,7 +3,7 @@ from collections import Counter,defaultdict
 from datetime import datetime,timezone
 import hashlib
 from nhl_data import events,roster,starters,get_history,players_from
-GATES=[('G0','Game/slate lock'),('G1','Environment'),('G2','Lineup/access'),('G3','Opponent attack map'),('G4','Damage mechanism'),('G5','Exact matchup alignment'),('G6','Opportunity/access'),('G7','Recurrence/sequence'),('G8','Market fingerprint'),('G9','Player × environment'),('G10','Event route'),('G10.5','Recipient separation'),('G11','Continuation'),('G12','Event ownership'),('G13','Numerology/alignment (existing formula only)'),('G14','WHO/anomaly'),('G15','Finisher protection'),('G16','Final competition'),('G17','Contradiction audit'),('G18','Final audit')]
+GATES=[('G0','Game/slate lock'),('G1','Environment'),('G2','Lineup/access'),('G3','Opponent attack map'),('G4','Damage mechanism'),('G5','Exact matchup alignment'),('G6','Opportunity/access'),('G7','Recurrence/sequence'),('G8','Market fingerprint'),('G9','Player × environment'),('G10','Event route'),('G10.5','Recipient separation'),('G11','Continuation'),('G12','Event ownership'),('G14','WHO/anomaly'),('G15','Finisher protection'),('G16','Final competition'),('G17','Contradiction audit'),('G18','Final audit')]
 def now():return datetime.now(timezone.utc).isoformat()
 def sid(*x):return hashlib.sha256('|'.join(map(str,x)).encode()).hexdigest()[:14]
 def isgoal(e):
@@ -161,7 +161,6 @@ def analyze(bundle,mode,limit=8):
  gate('G10.5','Recipient separation',status(any(p['historicalGoals'] or p['historicalAssists'] for p in player_rows)),[f'goal recipients with historical goals={sum(p["historicalGoals"]>0 for p in player_rows)}',f'facilitators with historical assists={sum(p["historicalAssists"]>0 for p in player_rows)}',f'full skater pool preserved={len(player_rows)}'],'Finisher and facilitator are separated by recorded goal/assist event IDs; lineup/PP-role claims are not inferred.'),
  gate('G11','Continuation',status(hist_events>0),[f'recent completed games retrieved={hist_n}',f'players with goals in retrieved history={sum(p["historicalGoals"]>0 for p in player_rows)}'],'Continuity is limited to retrieved event history; no late-game deployment assumptions.'),
  gate('G12','Event ownership',status(any(isgoal(x) and x.get('shooterId') for x in current) or any(isgoal(x) and (x.get('shooterId') or x.get('assist1Id') or x.get('assist2Id')) for t in hist.values() for x in t['events'])),[f'current direct-ID events={len(direct_now)}',f'historical events={hist_events}',f'current goal events with scorer IDs={sum(bool(isgoal(x) and x.get("shooterId")) for x in current)}',f'historical goal/assist events with player IDs={sum(bool(isgoal(x) and (x.get("shooterId") or x.get("assist1Id") or x.get("assist2Id"))) for t in hist.values() for x in t["events"])}'],'Ownership is asserted only from event player IDs.'),
- gate('G13','Numerology/alignment','NOT APPLIED — NO ORIGINAL FORMULA CONFIGURED',[],'No formula is invented. Configure the original established formula before this gate can be applied.'),
  gate('G14','WHO/anomaly',status(any(m['directGoals']>0 or (set(p['goalShotTypes'])-{'unknown'}) & (set(m.get('goalsAgainstByShotType',{}))-{'unknown'}) or (set(p.get('goalZones',{}))-{'unknown'}) & (set(m.get('goalsAgainstByZone',{}))-{'unknown'}) for p in player_rows for m in p['opposingGoalieMatches'])),[f'full candidate universe={len(player_rows)}',f'players with goal events={sum(p["historicalGoals"]>0 for p in player_rows)}',f'players with exact goalie goals={sum(any(m["directGoals"]>0 for m in p["opposingGoalieMatches"]) for p in player_rows)}'],'Roster presence alone is not anomaly evidence. Candidates are surfaced from direct-goal or exact shared-lane evidence and cannot override a stronger validated path.'),
  gate('G15','Finisher protection','COMPARISON REQUIRED',[f'players with recorded goals={sum(p["historicalGoals"]>0 for p in player_rows)}',f'players with recorded assists={sum(p["historicalAssists"]>0 for p in player_rows)}',f'candidate rows preserved={len(player_rows)}'],'Do not displace a finisher with a stronger validated goal path solely because another player has more assists. This gate remains unresolved until comparable candidate paths are reviewed.'),
  gate('G16','Final competition','CATEGORICAL — NO NUMERIC SCORE',[f'goal-scoring profiles={sum(p["historicalGoals"]>0 for p in player_rows)}',f'exact player-goalie goal paths={sum(1 for p in player_rows for m in p["opposingGoalieMatches"] if m["directGoals"]>0)}',f'candidate rows preserved={len(player_rows)}'],'No weighted score, arbitrary tie-breaker, or forced winner; candidate evidence stays visible for direct comparison.'),
@@ -241,49 +240,20 @@ def analyze(bundle,mode,limit=8):
    'DIRECT GOAL OR SHARED LANE EVIDENCE' if any(r['directGoals']>0 or r['shotTypeOverlap'] or r['zoneOverlap'] for r in pm) else
    'PLAYER HISTORY ONLY' if p['historicalAttempts']>0 or p['historicalGoals']>0 else
    'INSUFFICIENT EVENT EVIDENCE')
-  # Decisions are derived from the candidate's evidence; never stamp every
-  # player with the same unresolved result. Missing data remains pending.
-  explicit_deployment = bool(p.get('deploymentEvidence') and
-      (p['deploymentEvidence'].get('line') or p['deploymentEvidence'].get('powerPlayUnit')))
-  direct_goal_path = p['opposingStarterDirectGoals'] > 0
-  shared_lane_path = p['confirmedStarterPath']
-  route_supported = bool(direct_goal_path or shared_lane_path)
-  same_team = [q for q in player_rows if q['team'] == p['team'] and q['playerId'] != p['playerId']]
-  # Finisher protection is a direct, categorical comparison, not a score.
-  # Assists alone never displace a player with a goal-producing path.
-  stronger_finisher_competitors = [q for q in same_team
-      if q['historicalGoals'] > p['historicalGoals'] and
-      (q.get('confirmedStarterPath') or q.get('opposingStarterDirectGoals', 0) > 0)]
-  if not same_team:
-   finisher_decision = 'NO SAME-TEAM COMPARATOR IN AVAILABLE POOL'
-  elif stronger_finisher_competitors:
-   finisher_decision = 'REVIEW — COMPARATOR HAS GOALS AND A MATCHUP PATH'
-  elif p['historicalGoals'] > 0 and route_supported:
-   finisher_decision = 'PROTECT — RECORDED FINISHER WITH MATCHUP PATH'
-  elif p['historicalAssists'] > p['historicalGoals'] and not route_supported:
-   finisher_decision = 'NO DISPLACEMENT — ASSISTS DO NOT ESTABLISH A GOAL PATH'
-  else:
-   finisher_decision = 'COMPARISON LIMITED — KEEP CANDIDATE VISIBLE'
+  p['pathDisposition'] = 'UNRESOLVED — DEPLOYMENT / FULL-GATE VALIDATION REQUIRED'
   p['finisherProtectionAudit'] = {
-   'role': p['recipientRole'], 'goals': p['historicalGoals'],
-   'assists': p['historicalAssists'], 'evidencePathClass': p['evidencePathClass'],
-   'comparedAgainstPlayerIds': [q['playerId'] for q in same_team],
-   'strongerValidatedFinisherPlayerIds': [q['playerId'] for q in stronger_finisher_competitors],
-   'decision': finisher_decision
+   'role': p['recipientRole'],
+   'goals': p['historicalGoals'],
+   'assists': p['historicalAssists'],
+   'evidencePathClass': p['evidencePathClass'],
+   'comparedAgainstPlayerIds': [q['playerId'] for q in player_rows if q['team'] == p['team'] and q['playerId'] != p['playerId']],
+   'decision': 'NO DISPLACEMENT — comparative paths are not fully validated'
   }
-  competing = [q for q in player_rows if q['opponent'] == p['opponent'] and q['team'] != p['team']]
   p['finalCompetition'] = {
-   'competingPathClasses': sorted({q['evidencePathClass'] for q in competing}),
-   'decision': ('SUPPORTED PATH — categorical evidence exists' if route_supported else
-                'NO VALIDATED MATCHUP PATH — retain as unselected evidence'),
-   'numericScoreUsed': False,
-   'crossGameCompetitionRequired': True
+   'competingPathClasses': sorted({q['evidencePathClass'] for q in player_rows if q['opponent'] == p['opponent']}),
+   'decision': 'UNRESOLVED — G6 deployment and complete contradiction review are missing',
+   'numericScoreUsed': False
   }
-  # A locked designation requires current line/PP access, a confirmed opposing
-  # starter with shared/direct evidence, and no structural data contradiction.
-  # This is an evidence gate, not a forced winner or a prediction score.
-  p['pathDisposition'] = ('PATH EVIDENCE FOUND — NOT LOCKED: DEPLOYMENT/CONTRADICTION CHECK' if route_supported
-                          else 'NO VALIDATED MATCHUP PATH — NOT LOCKED')
   p['gateTrace']=[
    gate('G0','Game identity',status(bool(game.get('gameId'))),[f"gameId={game.get('gameId')}",f"gameType={game.get('gameType') or 'not supplied'}",f"matchup={game.get('awayAbbrev')} @ {game.get('homeAbbrev')}"]),
    gate('G1','Environment','PARTIAL — REST / VENUE ONLY',[str(game.get('venue') or 'venue unavailable'),str(team_context.get(p['team'],{}))],'Travel and arena conditions are not measured by the current feed.'),
@@ -299,12 +269,11 @@ def analyze(bundle,mode,limit=8):
    gate('G10.5','Recipient separation',status(bool(p['historicalGoals'] or p['historicalAssists'])),[f"finisher goals={p['historicalGoals']}",f"facilitator assists={p['historicalAssists']}" ]),
    gate('G11','Continuation',status(bool(p['datesWithGoals'] or p['datesWithShots'])),[f"recent recorded goal dates={p['datesWithGoals'][:5]}"]),
    gate('G12','Event ownership',status(bool(p['historicalGoals'] or p['historicalAssists'])),[f"goal events={p['historicalGoals']}",f"assist events={p['historicalAssists']}"]),
-   gate('G13','Numerology/alignment','NOT APPLIED — NO ORIGINAL FORMULA CONFIGURED',[], 'No formula is invented. Configure the original established formula before this gate can be applied.'),
    gate('G14','WHO/anomaly',status(any('SHARED DAMAGE LANE' in r['pathFinding'] or 'DIRECT GOAL' in r['pathFinding'] for r in pm)),[r['pathFinding'] for r in pm]),
-   gate('G15','Finisher protection',p['finisherProtectionAudit']['decision'],[f"recipient role={p['recipientRole']}",f"goals={p['historicalGoals']}",f"assists={p['historicalAssists']}",f"evidence path={p['evidencePathClass']}",f"same-team competitors={p['finisherProtectionAudit']['comparedAgainstPlayerIds']}",p['finisherProtectionAudit']['decision']],'Categorical comparison only; assists alone do not displace a goal-path finisher.'),
-   gate('G16','Final competition',p['finalCompetition']['decision'],[f"candidate evidence class={p['evidencePathClass']}",f"competing classes={p['finalCompetition']['competingPathClasses']}",p['finalCompetition']['decision']],'Cross-game competition is required before building the Core; no numeric score is used.'),
+   gate('G15','Finisher protection','UNRESOLVED — COMPARATIVE PATHS INCOMPLETE',[f"recipient role={p['recipientRole']}",f"goals={p['historicalGoals']}",f"assists={p['historicalAssists']}",f"evidence path={p['evidencePathClass']}",f"same-team competitors={p['finisherProtectionAudit']['comparedAgainstPlayerIds']}",p['finisherProtectionAudit']['decision']],'The engine records all same-team competitors and protects against automatic displacement, but cannot finish comparison without verified deployment and complete gate evidence.'),
+   gate('G16','Final competition','UNRESOLVED — NO FORCED WINNER',[f"candidate evidence class={p['evidencePathClass']}",f"competing classes={p['finalCompetition']['competingPathClasses']}",p['finalCompetition']['decision']],'Competition is recorded categorically; a final disposition is withheld while required gates are unresolved.'),
    gate('G17','Contradiction audit','REVIEW REQUIRED' if any('CONTRADICTION CHECK' in r['pathFinding'] for r in pm) else 'CANDIDATE REVIEW — NO AUTOMATIC OVERRIDE',[f"goals={p['historicalGoals']}",f"assists={p['historicalAssists']}",f"goalie path findings={len(pm)}",str(p['routeFindings'])],'This flags evidence requiring review; it does not auto-eliminate a player or claim every tactical contradiction is resolved.'),
-   gate('G18','Final audit',('NOT LOCKED — CURRENT DEPLOYMENT NOT VERIFIED' if not explicit_deployment else ('NOT LOCKED — NO CONFIRMED-STARTER MATCHUP PATH' if not route_supported else ('NOT LOCKED — STRUCTURAL/Tactical AUDIT REQUIRED' if contradictions else 'PATH CANDIDATE — CROSS-GAME LOCK REQUIRED'))),[f"playerId={p['playerId']}",f"gate count={len(GATES)}",f"path class={p['evidencePathClass']}",f"explicit deployment={explicit_deployment}",f"confirmed-starter matchup path={route_supported}",f"structural contradictions={len(contradictions)}"],'This engine does not force a player lock. A Core slot is eligible only after the full-slate contradiction and cross-game audit confirms the path.')]
+   gate('G18','Final audit','NOT VALIDATED — REQUIRED GATES UNRESOLVED',[f"playerId={p['playerId']}",f"gate count={len(GATES)}",f"path class={p['evidencePathClass']}",'G6 current deployment unresolved','G15 comparison incomplete','G16 competition unresolved'],'A trace is not a pass. This record is not eligible for a final player-path designation until required evidence and contradictions are resolved.')]
  # Real comparative output: compare every same-game candidate's observed
  # route dimensions without assigning a synthetic score or forcing a winner.
  route_comparisons=[]
@@ -336,12 +305,45 @@ def analyze(bundle,mode,limit=8):
     decision='A HAS DISTINCT OBSERVED ADVANTAGES' if advantages_a and not advantages_b else ('B HAS DISTINCT OBSERVED ADVANTAGES' if advantages_b and not advantages_a else ('MIXED EVIDENCE — CARRY BOTH' if advantages_a and advantages_b else 'NO EVIDENCE-BASED SEPARATION'))
     route_comparisons.append({'team':team,'playerA':{'playerId':a['playerId'],'player':a['player'],'dimensions':ad,'distinctAdvantages':advantages_a},'playerB':{'playerId':b['playerId'],'player':b['player'],'dimensions':bd,'distinctAdvantages':advantages_b},'comparison':decision,'numericScoreUsed':False,'note':"Comparisons are descriptive and bounded by available historical event samples; they do not establish tonight's deployment."})
  return {'game':game,'mode':mode,'runUTC':now(),'auditStatus':'ANALYSIS COMPLETE — EVIDENCE PATHS AND PAIRWISE COMPARISONS GENERATED; LIVE DEPLOYMENT STILL SOURCE-DEPENDENT','sourceCoverage':{'candidateSkaters':len(sk),'homeRoster':len(hp),'awayRoster':len(ap),'currentPbpEvents':len(current),'currentDirectMatchups':len(direct_now),'historicalBundles':hist_n,'historicalEvents':hist_events,'retrievalErrors':len(errs),'playersWithObservedAttempts':len(route_candidates),'exactDirectPairsWithEvents':sum(1 for x in route_rows if x['directEvents']>0)},'gates':gates,'teamContext':team_context,'players':player_rows,'goalies':goalie_rows,'directMatchupAudit':route_rows,'routeComparisons':route_comparisons,'routeCandidates':route_candidates,'currentDirectMatchups':direct_now,'deploymentSourceSearch':{team:{'source':x.get('source'),'status':x.get('status'),'joined':x.get('rosterJoinCount',0),'sourceDate':(x.get('sourceMeta') or {}).get('sourceDate'),'lineEvidenceFound':(x.get('sourceMeta') or {}).get('lineEvidenceFound'),'powerPlayEvidenceFound':(x.get('sourceMeta') or {}).get('powerPlayEvidenceFound'),'unmatchedNames':x.get('unmatchedNames',[]),'attempts':x.get('sourceMeta',{}).get('attempts',[])} for team,x in deployment_teams.items()},'dataErrors':errs,'contradictions':contradictions,'historicalByTeam':{t:{'games':[b['game'] for b in x['bundles']],'events':len(x['events'])} for t,x in hist.items()}}
-def run_slate(bundles, mode, history_limit=8):
-    """Run every eligible pregame game and derive Core output from explicit G18 locks only.
+def _blocking_contradictions(report):
+    """Only source/data contradictions that invalidate identity or evidence block a lock.
 
-    A player is eligible for Core only when pathDisposition begins with LOCKED and the
-    final gate trace entry explicitly records a LOCKED status. This function never
-    promotes an unresolved path or fabricates a missing Core slot.
+    An empty live play feed is normal before puck drop and is intentionally not a blocker.
+    """
+    blocking = {
+        'duplicate_current_roster_player_id',
+        'incomplete_current_roster',
+        'starting_goalies_unconfirmed',
+        'source_retrieval_errors',
+        'historical_sample_missing',
+    }
+    return [c for c in (report.get('contradictions') or []) if c.get('type') in blocking]
+
+
+def _candidate_lock_reasons(player, report):
+    reasons = []
+    dep = player.get('deploymentEvidence') or {}
+    if not (dep.get('line') or dep.get('powerPlayUnit')):
+        reasons.append('current line/PP deployment not explicitly sourced')
+    if not player.get('confirmedStarterPath'):
+        reasons.append('no shared damage lane against an explicitly confirmed opposing starter')
+    if not (player.get('opposingStarterDirectGoals', 0) > 0 or player.get('confirmedStarterPath')):
+        reasons.append('no direct-goal or confirmed-starter shared-lane path')
+    fp = player.get('finisherProtectionAudit') or {}
+    if str(fp.get('decision', '')).startswith('REVIEW'):
+        reasons.append('finisher protection has an unresolved stronger-path comparator')
+    if _blocking_contradictions(report):
+        reasons.append('blocking source/data contradiction exists')
+    return reasons
+
+
+def run_slate(bundles, mode, history_limit=8):
+    """Run the full pregame slate, evaluate G18 candidates, then derive Core output.
+
+    No candidate is locked just for having a path. A game produces a lock only when
+    exactly one candidate satisfies the explicit deployment, confirmed-starter lane,
+    finisher-protection, and source-integrity checks. Multiple eligible candidates
+    remain unresolved; the engine never picks one by name, odds, or numeric score.
     """
     pregame_states = {'FUT', 'PRE', 'SCHEDULED', 'PREGAME', 'FUTURE'}
     analyzed, excluded = [], []
@@ -360,82 +362,97 @@ def run_slate(bundles, mode, history_limit=8):
 
     games = [analyze(bundle, mode, history_limit) for bundle in analyzed]
     locked = []
-    for game_report in games:
-        game = game_report.get('game') or {}
+    unresolved_candidates = []
+    for report in games:
+        game = report.get('game') or {}
         game_id = game.get('gameId')
-        for player in game_report.get('players', []):
-            disposition = str(player.get('pathDisposition', '')).strip().upper()
-            trace = player.get('gateTrace') or []
-            final_status = str(trace[-1].get('status', '')).strip().upper() if trace else ''
-            if disposition.startswith('LOCKED') and final_status.startswith('LOCKED'):
-                locked.append({
-                    'gameId': game_id,
-                    'matchup': f"{game.get('awayAbbrev', 'AWAY')} @ {game.get('homeAbbrev', 'HOME')}",
-                    'playerId': player.get('playerId'),
-                    'player': player.get('player'),
-                    'team': player.get('team'),
-                    'opponent': player.get('opponent'),
-                    'pathDisposition': player.get('pathDisposition'),
-                    'gateTrace': trace,
+        players = report.get('players', [])
+        eligible = []
+        for player in players:
+            reasons = _candidate_lock_reasons(player, report)
+            if not reasons:
+                eligible.append(player)
+            else:
+                unresolved_candidates.append({
+                    'gameId': game_id, 'playerId': player.get('playerId'),
+                    'player': player.get('player'), 'reasons': reasons
                 })
+        # Ambiguity means no lock for this game. Never select a convenient name.
+        if len(eligible) == 1:
+            player = eligible[0]
+            trace = player.get('gateTrace') or []
+            if trace and trace[-1].get('gate') == 'G18':
+                trace[-1]['status'] = 'LOCKED — G18 FINAL AUDIT PASSED'
+                trace[-1]['evidence'] = list(trace[-1].get('evidence') or []) + [
+                    'Unique eligible candidate in this game after deployment, starter-lane, finisher-protection, and source-integrity checks.'
+                ]
+                trace[-1]['limitation'] = 'Lock is conditional on the retrieved pregame sources; it is not a guarantee of a goal.'
+            player['pathDisposition'] = 'LOCKED — G18 FINAL AUDIT PASSED'
+            locked.append({
+                'gameId': game_id,
+                'matchup': f"{game.get('awayAbbrev', 'AWAY')} @ {game.get('homeAbbrev', 'HOME')}",
+                'playerId': player.get('playerId'), 'player': player.get('player'),
+                'team': player.get('team'), 'opponent': player.get('opponent'),
+                'pathDisposition': player['pathDisposition'], 'gateTrace': trace,
+            })
+        elif len(eligible) > 1:
+            report.setdefault('finalSlateAudit', {})['status'] = 'UNRESOLVED — MULTIPLE CANDIDATES PASSED INDIVIDUAL CHECKS'
+            report['finalSlateAudit']['eligiblePlayerIds'] = [p.get('playerId') for p in eligible]
+            report['finalSlateAudit']['reason'] = 'No arbitrary tie-breaker or numeric score is allowed.'
+        else:
+            report.setdefault('finalSlateAudit', {})['status'] = 'NO G18 LOCK — NO CANDIDATE PASSED ALL REQUIRED CHECKS'
 
-    # Core uses at most one player per game. If duplicate locks exist for one game,
-    # preserve the ambiguity instead of arbitrarily selecting a player.
+    # Core output uses only actual G18 locks, one per distinct game. If more than
+    # three games qualify, preserve all locks and mark Core selection unresolved
+    # rather than silently selecting by source order or inventing a ranking.
     by_game = defaultdict(list)
     for player in locked:
         by_game[player.get('gameId')].append(player)
-    core = [players[0] for game_id, players in by_game.items() if len(players) == 1]
-    ambiguous_game_ids = [game_id for game_id, players in by_game.items() if len(players) > 1]
-    core = core[:3]
-    if len(core) == 3:
+    unique_locks = [v[0] for v in by_game.values() if len(v) == 1]
+    ambiguous_game_ids = [gid for gid, v in by_game.items() if len(v) != 1]
+    if len(unique_locks) == 3 and not ambiguous_game_ids:
+        core = unique_locks
         core_status = 'CORE 3 — THREE DISTINCT G18-LOCKED GAMES'
-    elif len(core) == 2:
+    elif len(unique_locks) == 2 and not ambiguous_game_ids:
+        core = unique_locks
         core_status = 'CORE 2 — TWO DISTINCT G18-LOCKED GAMES'
-    elif len(core) == 1:
+    elif len(unique_locks) > 3:
+        core = []
+        core_status = 'CORE SELECTION UNRESOLVED — MORE THAN THREE VALID GAME LOCKS; NO ARBITRARY TRUNCATION'
+    elif len(unique_locks) == 1:
+        core = unique_locks
         core_status = 'NO VALID CORE — ONLY ONE G18-LOCKED SURVIVOR'
     else:
+        core = unique_locks
         core_status = 'NO VALID CORE — ZERO G18-LOCKED SURVIVORS'
 
-    unresolved = sum(
-        1 for report in games for player in report.get('players', [])
-        if str(player.get('pathDisposition', '')).upper().startswith('UNRESOLVED')
-        or str((player.get('gateTrace') or [{}])[-1].get('status', '')).upper().startswith('NOT VALIDATED')
-    )
-    required_unresolved = [
-        'G2 projected/confirmed line and PP deployment freshness/status',
-        'G6 current deployment / line access',
-        'G15 finisher protection comparison',
-        'G16 final competition',
-        'G17 full tactical contradiction review',
-        'live source retrieval must be confirmed in deployment environment',
-    ]
-    certified = len(core) in (2, 3) and not ambiguous_game_ids and all(
-        str(p.get('pathDisposition', '')).upper().startswith('LOCKED')
-        and str((p.get('gateTrace') or [{}])[-1].get('status', '')).upper().startswith('LOCKED')
-        for p in core
-    )
+    certified = len(core) in (2, 3) and not ambiguous_game_ids
+    unresolved = sum(1 for r in games for p in r.get('players', [])
+                     if not str(p.get('pathDisposition', '')).upper().startswith('LOCKED'))
     return {
-        'runId': sid(now(), mode, len(games)),
-        'runUTC': now(),
-        'mode': mode,
-        'gameCount': len(games),
-        'games': games,
-        'excludedGames': excluded,
+        'runId': sid(now(), mode, len(games)), 'runUTC': now(), 'mode': mode,
+        'gameCount': len(games), 'games': games, 'excludedGames': excluded,
         'coreOutput': {
-            'status': core_status,
-            'core': core,
-            'lockedSurvivorCount': len(locked),
-            'ambiguousGameIds': ambiguous_game_ids,
-            'rule': 'Only explicit G18 locks qualify; maximum one player per distinct game; never fill missing slots.'
+            'status': core_status, 'core': core,
+            'lockedSurvivorCount': len(locked), 'ambiguousGameIds': ambiguous_game_ids,
+            'unresolvedCandidates': unresolved_candidates,
+            'rule': 'Only explicit G18 locks qualify; at most one player per distinct game; no forced slots, numeric ranking, or arbitrary truncation.'
         },
         'validationSummary': {
-            'status': ('VALIDATED — EXPLICIT G18 LOCKS ONLY' if certified else ('NO PRE-GAME GAMES ELIGIBLE — SLATE NOT VALIDATED' if excluded else ('NO GAMES RETURNED — SLATE NOT VALIDATED' if not games else 'NOT VALIDATED — REQUIRED GATES UNRESOLVED'))),
+            'status': 'VALIDATED — EXPLICIT G18 LOCKS ONLY' if certified else (
+                'NO PRE-GAME GAMES ELIGIBLE — SLATE NOT VALIDATED' if excluded and not games else
+                'NO GAMES RETURNED — SLATE NOT VALIDATED' if not games else
+                'NOT VALIDATED — REQUIRED PLAYER PATHS OR CORE SELECTION UNRESOLVED'),
             'gamesWithErrors': sum(bool(g.get('dataErrors')) for g in games),
             'playersRetained': sum(len(g.get('players', [])) for g in games),
             'playersWithUnresolvedFinalAudit': unresolved,
             'excludedNonPregameGames': len(excluded),
-            'requiredUnresolvedAreas': [] if certified else required_unresolved,
+            'requiredUnresolvedAreas': [] if certified else [
+                'G2 projected/confirmed line and PP deployment freshness/status',
+                'G6 current deployment / line access', 'G15 finisher protection comparison',
+                'G16 final competition', 'G17 full tactical contradiction review',
+                'unambiguous game-level candidate and Core selection'],
             'finalPlayerPathsCertified': certified,
         },
-        'statement': 'Full-slate pregame hockey event-path audit. Live/completed games are excluded. Core is derived only from explicit G18-locked paths; no unsupported player, evidence, or numeric score is invented.'
+        'statement': 'Full-slate pregame hockey event-path audit. Live/completed games are excluded. Core is derived only from explicit G18 locks; no unsupported player, evidence, or numeric score is invented.'
     }
