@@ -336,18 +336,106 @@ def analyze(bundle,mode,limit=8):
     decision='A HAS DISTINCT OBSERVED ADVANTAGES' if advantages_a and not advantages_b else ('B HAS DISTINCT OBSERVED ADVANTAGES' if advantages_b and not advantages_a else ('MIXED EVIDENCE — CARRY BOTH' if advantages_a and advantages_b else 'NO EVIDENCE-BASED SEPARATION'))
     route_comparisons.append({'team':team,'playerA':{'playerId':a['playerId'],'player':a['player'],'dimensions':ad,'distinctAdvantages':advantages_a},'playerB':{'playerId':b['playerId'],'player':b['player'],'dimensions':bd,'distinctAdvantages':advantages_b},'comparison':decision,'numericScoreUsed':False,'note':"Comparisons are descriptive and bounded by available historical event samples; they do not establish tonight's deployment."})
  return {'game':game,'mode':mode,'runUTC':now(),'auditStatus':'ANALYSIS COMPLETE — EVIDENCE PATHS AND PAIRWISE COMPARISONS GENERATED; LIVE DEPLOYMENT STILL SOURCE-DEPENDENT','sourceCoverage':{'candidateSkaters':len(sk),'homeRoster':len(hp),'awayRoster':len(ap),'currentPbpEvents':len(current),'currentDirectMatchups':len(direct_now),'historicalBundles':hist_n,'historicalEvents':hist_events,'retrievalErrors':len(errs),'playersWithObservedAttempts':len(route_candidates),'exactDirectPairsWithEvents':sum(1 for x in route_rows if x['directEvents']>0)},'gates':gates,'teamContext':team_context,'players':player_rows,'goalies':goalie_rows,'directMatchupAudit':route_rows,'routeComparisons':route_comparisons,'routeCandidates':route_candidates,'currentDirectMatchups':direct_now,'deploymentSourceSearch':{team:{'source':x.get('source'),'status':x.get('status'),'joined':x.get('rosterJoinCount',0),'sourceDate':(x.get('sourceMeta') or {}).get('sourceDate'),'lineEvidenceFound':(x.get('sourceMeta') or {}).get('lineEvidenceFound'),'powerPlayEvidenceFound':(x.get('sourceMeta') or {}).get('powerPlayEvidenceFound'),'unmatchedNames':x.get('unmatchedNames',[]),'attempts':x.get('sourceMeta',{}).get('attempts',[])} for team,x in deployment_teams.items()},'dataErrors':errs,'contradictions':contradictions,'historicalByTeam':{t:{'games':[b['game'] for b in x['bundles']],'events':len(x['events'])} for t,x in hist.items()}}
-def run_slate(bundles,mode,history_limit=8):
- # Pregame analysis must never silently back-solve from a live or completed game.
- # Keep excluded game IDs and states visible in the report rather than analyzing them.
- pregame_states={'FUT','PRE','SCHEDULED','PREGAME','FUTURE'}
- analyzed=[]; excluded=[]
- for bundle in bundles:
-  game=bundle.get('game') or {}
-  state=str(game.get('gameState') or game.get('gameScheduleState') or 'UNKNOWN').upper()
-  if state not in pregame_states:
-   excluded.append({'gameId':game.get('gameId'),'matchup':f"{game.get('awayAbbrev','AWAY')} @ {game.get('homeAbbrev','HOME')}",'gameState':state,'reason':'Excluded from pregame Blender: game is not explicitly in a scheduled/pregame state.'})
-   continue
-  analyzed.append(bundle)
- games=[analyze(b,mode,history_limit) for b in analyzed]
- unresolved=sum(1 for g in games for p in g.get('players',[]) if str(p.get('pathDisposition','')).startswith('UNRESOLVED') or str((p.get('gateTrace') or [{}])[-1].get('status','')).startswith('NOT VALIDATED'))
- return {'runId':sid(now(),mode,len(games)),'runUTC':now(),'mode':mode,'gameCount':len(games),'games':games,'excludedGames':excluded,'validationSummary':{'status':'NOT VALIDATED — REQUIRED GATES UNRESOLVED' if games else ('NO PRE-GAME GAMES ELIGIBLE — SLATE NOT VALIDATED' if excluded else 'NO GAMES RETURNED — SLATE NOT VALIDATED'),'gamesWithErrors':sum(bool(g.get('dataErrors')) for g in games),'playersRetained':sum(len(g.get('players',[])) for g in games),'playersWithUnresolvedFinalAudit':unresolved,'excludedNonPregameGames':len(excluded),'requiredUnresolvedAreas':['G2 projected/confirmed line and PP deployment freshness/status','G6 current deployment / line access','G15 finisher protection comparison','G16 final competition','G17 full tactical contradiction review','live source retrieval must be confirmed in deployment environment'],'finalPlayerPathsCertified':False},'statement':'Full-slate pregame hockey event-path audit. Live/completed games are excluded. Every active gate is traced in order; direct player/goalie identity is exact-ID only; no unsupported player, evidence, or numeric score is invented. A completed trace is not a certified final path.'}
+def run_slate(bundles, mode, history_limit=8):
+    """Run every eligible pregame game and derive Core output from explicit G18 locks only.
+
+    A player is eligible for Core only when pathDisposition begins with LOCKED and the
+    final gate trace entry explicitly records a LOCKED status. This function never
+    promotes an unresolved path or fabricates a missing Core slot.
+    """
+    pregame_states = {'FUT', 'PRE', 'SCHEDULED', 'PREGAME', 'FUTURE'}
+    analyzed, excluded = [], []
+    for bundle in bundles:
+        game = bundle.get('game') or {}
+        state = str(game.get('gameState') or game.get('gameScheduleState') or 'UNKNOWN').upper()
+        if state not in pregame_states:
+            excluded.append({
+                'gameId': game.get('gameId'),
+                'matchup': f"{game.get('awayAbbrev', 'AWAY')} @ {game.get('homeAbbrev', 'HOME')}",
+                'gameState': state,
+                'reason': 'Excluded from pregame Blender: game is not explicitly in a scheduled/pregame state.'
+            })
+            continue
+        analyzed.append(bundle)
+
+    games = [analyze(bundle, mode, history_limit) for bundle in analyzed]
+    locked = []
+    for game_report in games:
+        game = game_report.get('game') or {}
+        game_id = game.get('gameId')
+        for player in game_report.get('players', []):
+            disposition = str(player.get('pathDisposition', '')).strip().upper()
+            trace = player.get('gateTrace') or []
+            final_status = str(trace[-1].get('status', '')).strip().upper() if trace else ''
+            if disposition.startswith('LOCKED') and final_status.startswith('LOCKED'):
+                locked.append({
+                    'gameId': game_id,
+                    'matchup': f"{game.get('awayAbbrev', 'AWAY')} @ {game.get('homeAbbrev', 'HOME')}",
+                    'playerId': player.get('playerId'),
+                    'player': player.get('player'),
+                    'team': player.get('team'),
+                    'opponent': player.get('opponent'),
+                    'pathDisposition': player.get('pathDisposition'),
+                    'gateTrace': trace,
+                })
+
+    # Core uses at most one player per game. If duplicate locks exist for one game,
+    # preserve the ambiguity instead of arbitrarily selecting a player.
+    by_game = defaultdict(list)
+    for player in locked:
+        by_game[player.get('gameId')].append(player)
+    core = [players[0] for game_id, players in by_game.items() if len(players) == 1]
+    ambiguous_game_ids = [game_id for game_id, players in by_game.items() if len(players) > 1]
+    core = core[:3]
+    if len(core) == 3:
+        core_status = 'CORE 3 — THREE DISTINCT G18-LOCKED GAMES'
+    elif len(core) == 2:
+        core_status = 'CORE 2 — TWO DISTINCT G18-LOCKED GAMES'
+    elif len(core) == 1:
+        core_status = 'NO VALID CORE — ONLY ONE G18-LOCKED SURVIVOR'
+    else:
+        core_status = 'NO VALID CORE — ZERO G18-LOCKED SURVIVORS'
+
+    unresolved = sum(
+        1 for report in games for player in report.get('players', [])
+        if str(player.get('pathDisposition', '')).upper().startswith('UNRESOLVED')
+        or str((player.get('gateTrace') or [{}])[-1].get('status', '')).upper().startswith('NOT VALIDATED')
+    )
+    required_unresolved = [
+        'G2 projected/confirmed line and PP deployment freshness/status',
+        'G6 current deployment / line access',
+        'G15 finisher protection comparison',
+        'G16 final competition',
+        'G17 full tactical contradiction review',
+        'live source retrieval must be confirmed in deployment environment',
+    ]
+    certified = len(core) in (2, 3) and not ambiguous_game_ids and all(
+        str(p.get('pathDisposition', '')).upper().startswith('LOCKED')
+        and str((p.get('gateTrace') or [{}])[-1].get('status', '')).upper().startswith('LOCKED')
+        for p in core
+    )
+    return {
+        'runId': sid(now(), mode, len(games)),
+        'runUTC': now(),
+        'mode': mode,
+        'gameCount': len(games),
+        'games': games,
+        'excludedGames': excluded,
+        'coreOutput': {
+            'status': core_status,
+            'core': core,
+            'lockedSurvivorCount': len(locked),
+            'ambiguousGameIds': ambiguous_game_ids,
+            'rule': 'Only explicit G18 locks qualify; maximum one player per distinct game; never fill missing slots.'
+        },
+        'validationSummary': {
+            'status': ('VALIDATED — EXPLICIT G18 LOCKS ONLY' if certified else ('NO PRE-GAME GAMES ELIGIBLE — SLATE NOT VALIDATED' if excluded else ('NO GAMES RETURNED — SLATE NOT VALIDATED' if not games else 'NOT VALIDATED — REQUIRED GATES UNRESOLVED'))),
+            'gamesWithErrors': sum(bool(g.get('dataErrors')) for g in games),
+            'playersRetained': sum(len(g.get('players', [])) for g in games),
+            'playersWithUnresolvedFinalAudit': unresolved,
+            'excludedNonPregameGames': len(excluded),
+            'requiredUnresolvedAreas': [] if certified else required_unresolved,
+            'finalPlayerPathsCertified': certified,
+        },
+        'statement': 'Full-slate pregame hockey event-path audit. Live/completed games are excluded. Core is derived only from explicit G18-locked paths; no unsupported player, evidence, or numeric score is invented.'
+    }
