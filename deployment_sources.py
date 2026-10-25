@@ -247,83 +247,240 @@ def fetch_web_search(team, team_name=None):
                   'errors':[] if rows else ['Multiple web indexes searched; no explicit structured line/PP assignments found']}
 
 
-def fetch_deployment(team, team_name=None, mode='projected'):
-    """Search all configured web sources; never silently choose between conflicts.
-
-    In confirmed mode, projected-only sources are still searched for context but are
-    not promoted to confirmed deployment. A source must explicitly identify its
-    information as confirmed/actual before the resulting row can be labelled so.
+def fetch_deployment(team, team_name=None, mode="projected"):
     """
-    attempts=[]; collected=[]
-    for fn in (fetch_hockeyinsights, fetch_nhl_article, fetch_dailyfaceoff):
-        rows,meta=fn(team) if fn is fetch_hockeyinsights else fn(team,team_name)
-        attempts.append(meta)
-        collected.extend(rows)
+    Search all configured deployment sources.
 
-    # Broaden to a general web search only when the known sources have not
-    # supplied both dimensions. The search result is discovery; only explicit
-    # structured assignments on opened pages can become evidence rows.
-    known_line=any(r.get('line') is not None for r in collected)
-    known_pp=any(r.get('powerPlayUnit') is not None for r in collected)
+    Confirmed mode only accepts deployment evidence explicitly identified
+    by its source as confirmed/actual. Projected evidence is never promoted
+    to confirmed. Conflicts remain unresolved.
+    """
+    if mode not in {"projected", "confirmed"}:
+        raise ValueError(
+            "mode must be either 'projected' or 'confirmed'"
+        )
+
+    attempts = []
+    collected = []
+
+    # Search all configured primary sources.
+    for fn in (
+        fetch_hockeyinsights,
+        fetch_nhl_article,
+        fetch_dailyfaceoff,
+    ):
+        try:
+            if fn is fetch_hockeyinsights:
+                rows, meta = fn(team)
+            else:
+                rows, meta = fn(team, team_name)
+
+            attempts.append(meta)
+            collected.extend(rows or [])
+        except Exception as exc:
+            attempts.append({
+                "provider": getattr(fn, "__name__", str(fn)),
+                "result": (
+                    f"source failed: {type(exc).__name__}: {exc}"
+                ),
+            })
+
+    # Search more broadly if the primary sources did not provide
+    # both deployment dimensions.
+    known_line = any(
+        row.get("line") is not None for row in collected
+    )
+    known_pp = any(
+        row.get("powerPlayUnit") is not None for row in collected
+    )
+
     if not (known_line and known_pp):
-        rows,meta=fetch_web_search(team,team_name)
-        attempts.append(meta)
-        collected.extend(rows)
+        try:
+            rows, meta = fetch_web_search(team, team_name)
+            attempts.append(meta)
+            collected.extend(rows or [])
+        except Exception as exc:
+            attempts.append({
+                "provider": "General web search",
+                "result": (
+                    f"source failed: {type(exc).__name__}: {exc}"
+                ),
+            })
 
-    # Aggregate by exact normalized full name. If two sources disagree about a
-    # deployment dimension, keep the conflict visible and leave that dimension
-    # unresolved rather than using arbitrary source order as a tie-break.
-    by_player={}
+    # Aggregate by normalized full player name.
+    # Conflicting source values are retained as conflicts, not guessed.
+    by_player = {}
+
     for row in collected:
-        key=norm_name(row.get('playerName'))
-        if not key: continue
-        item=by_player.setdefault(key, {
-            'playerName':row.get('playerName'), 'line':None, 'powerPlayUnit':None,
-            'sources':[], 'lineEvidence':[], 'powerPlayEvidence':[], 'conflicts':[],
-            'retrievedAt':row.get('retrievedAt'), 'sourceTeam':team.upper()
+        key = norm_name(row.get("playerName"))
+        if not key:
+            continue
+
+        item = by_player.setdefault(key, {
+            "playerName": row.get("playerName"),
+            "line": None,
+            "powerPlayUnit": None,
+            "sources": [],
+            "lineEvidence": [],
+            "powerPlayEvidence": [],
+            "conflicts": [],
+            "retrievedAt": row.get("retrievedAt"),
+            "sourceTeam": str(team).upper(),
         })
-        src=row.get('source') or 'Unknown source'
-        if src not in item['sources']: item['sources'].append(src)
-        for field, evidence_key in (('line','lineEvidence'),('powerPlayUnit','powerPlayEvidence')):
-            value=row.get(field)
-            if value is None: continue
-            evidence={'value':value,'source':src,'sourcePath':row.get('sourcePath'),'retrievedAt':row.get('retrievedAt')}
-            if evidence not in item[evidence_key]: item[evidence_key].append(evidence)
+
+        source = row.get("source") or "Unknown source"
+
+        if source not in item["sources"]:
+            item["sources"].append(source)
+
+        for field, evidence_key in (
+            ("line", "lineEvidence"),
+            ("powerPlayUnit", "powerPlayEvidence"),
+        ):
+            value = row.get(field)
+            if value is None:
+                continue
+
+            evidence = {
+                "value": value,
+                "source": source,
+                "sourcePath": row.get("sourcePath"),
+                "retrievedAt": row.get("retrievedAt"),
+                "deploymentStatus": row.get("deploymentStatus"),
+                "confirmed": row.get("confirmed"),
+            }
+
+            if evidence not in item[evidence_key]:
+                item[evidence_key].append(evidence)
 
     for item in by_player.values():
-        for field,evidence_key in (('line','lineEvidence'),('powerPlayUnit','powerPlayEvidence')):
-            values=sorted({e['value'] for e in item[evidence_key]})
-            if len(values)==1:
-                item[field]=values[0]
-                item[field+'Source']=item[evidence_key][0]['source']
-                item[field+'SourcePath']=item[evidence_key][0].get('sourcePath')
-            elif len(values)>1:
-                item['conflicts'].append({'field':field,'values':values,'evidence':item[evidence_key]})
-                item[field]=None
-        item['evidenceStatus']='CONFLICT — DIMENSION LEFT UNRESOLVED' if item['conflicts'] else 'CONSISTENT SOURCE EVIDENCE'
+        for field, evidence_key in (
+            ("line", "lineEvidence"),
+            ("powerPlayUnit", "powerPlayEvidence"),
+        ):
+            evidence = item[evidence_key]
+            values = sorted({
+                entry["value"] for entry in evidence
+            })
 
-    rows=list(by_player.values())
-    has_line=any(r.get('line') is not None for r in rows)
-    has_pp=any(r.get('powerPlayUnit') is not None for r in rows)
-    conflicts=sum(len(r.get('conflicts',[])) for r in rows)
-    if mode=='confirmed':
-        # None of the configured generic sources proves a confirmed in-game unit
-        # merely by listing a line. Do not re-label projected information.
-        for row in rows:
-            row['deploymentStatus']='PROJECTED / NOT CONFIRMED'
-        status='CONFIRMED DEPLOYMENT NOT ESTABLISHED — PROJECTED SOURCES SEARCHED'
+            if len(values) == 1:
+                item[field] = values[0]
+                item[field + "Source"] = evidence[0]["source"]
+                item[field + "SourcePath"] = evidence[0].get(
+                    "sourcePath"
+                )
+            elif len(values) > 1:
+                item["conflicts"].append({
+                    "field": field,
+                    "values": values,
+                    "evidence": evidence,
+                })
+                item[field] = None
+
+        item["evidenceStatus"] = (
+            "CONFLICT — DIMENSION LEFT UNRESOLVED"
+            if item["conflicts"]
+            else "CONSISTENT SOURCE EVIDENCE"
+        )
+
+        # Only explicit source-level confirmation can establish
+        # confirmed deployment. A line assignment alone is insufficient.
+        confirmation_evidence = [
+            entry
+            for field in ("lineEvidence", "powerPlayEvidence")
+            for entry in item[field]
+            if (
+                entry.get("confirmed") is True
+                or str(
+                    entry.get("deploymentStatus") or ""
+                ).strip().upper() in {
+                    "CONFIRMED",
+                    "ACTUAL",
+                    "OFFICIAL CONFIRMED",
+                }
+            )
+        ]
+
+        item["confirmedEvidence"] = confirmation_evidence
+        item["confirmedDeploymentEstablished"] = bool(
+            confirmation_evidence
+        )
+
+        if item["conflicts"]:
+            item["deploymentStatus"] = (
+                "CONFLICT — NOT LOCKABLE"
+            )
+        elif item["confirmedDeploymentEstablished"]:
+            item["deploymentStatus"] = "CONFIRMED"
+        else:
+            item["deploymentStatus"] = (
+                "PROJECTED / NOT CONFIRMED"
+            )
+
+    rows = list(by_player.values())
+
+    has_line = any(
+        row.get("line") is not None for row in rows
+    )
+    has_pp = any(
+        row.get("powerPlayUnit") is not None for row in rows
+    )
+    conflicts = sum(
+        len(row.get("conflicts", [])) for row in rows
+    )
+
+    confirmed_rows = [
+        row for row in rows
+        if row.get("confirmedDeploymentEstablished")
+        and not row.get("conflicts")
+    ]
+
+    if mode == "confirmed":
+        if confirmed_rows:
+            status = (
+                "EXPLICIT CONFIRMED DEPLOYMENT FOUND"
+            )
+        else:
+            status = (
+                "CONFIRMED DEPLOYMENT NOT ESTABLISHED — "
+                "PROJECTED SOURCES SEARCHED"
+            )
     else:
-        for row in rows: row['deploymentStatus']='PROJECTED'
-        status=('CONFLICTS FOUND — REVIEW REQUIRED' if conflicts else
-                'FOUND LINE + PP EVIDENCE' if has_line and has_pp else
-                'PARTIAL — LINE + PP SOURCE SEARCH COMPLETED' if has_line or has_pp else
-                'NOT FOUND — ALL SOURCES SEARCHED')
+        status = (
+            "CONFLICTS FOUND — REVIEW REQUIRED"
+            if conflicts
+            else "FOUND LINE + PP EVIDENCE"
+            if has_line and has_pp
+            else "PARTIAL — LINE + PP SOURCE SEARCH COMPLETED"
+            if has_line or has_pp
+            else "NOT FOUND — ALL SOURCES SEARCHED"
+        )
+
     return rows, {
-        'status':status,
-        'selectedSource':' + '.join(dict.fromkeys(s for r in rows for s in r.get('sources',[]))) or None,
-        'sourceDate':next((x.get('sourceDate') for x in attempts if x.get('sourceDate')),None),
-        'attempts':attempts, 'lineEvidenceFound':has_line, 'powerPlayEvidenceFound':has_pp,
-        'conflictCount':conflicts, 'modeRequested':mode,
-        'confirmedDeploymentEstablished':False,
-        'sourceSearchComplete':True
+        "status": status,
+        "selectedSource": " + ".join(
+            dict.fromkeys(
+                source
+                for row in rows
+                for source in row.get("sources", [])
+            )
+        ) or None,
+        "sourceDate": next(
+            (
+                attempt.get("sourceDate")
+                for attempt in attempts
+                if attempt.get("sourceDate")
+            ),
+            None,
+        ),
+        "attempts": attempts,
+        "lineEvidenceFound": has_line,
+        "powerPlayEvidenceFound": has_pp,
+        "conflictCount": conflicts,
+        "modeRequested": mode,
+        "confirmedDeploymentEstablished": bool(
+            confirmed_rows
+        ),
+        "confirmedPlayerCount": len(confirmed_rows),
+        "sourceSearchComplete": True,
     }
